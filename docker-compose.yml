@@ -1,0 +1,148 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: chatvault-postgres
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/migrations:/docker-entrypoint-initdb.d
+    environment:
+      POSTGRES_DB: ${DB_NAME:-chatvault}
+      POSTGRES_USER: ${DB_USER:-chatvault}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "5432:5432"
+    networks:
+      - chatvault-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-chatvault}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: chatvault-redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - chatvault-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: chatvault-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./uploads:/var/www/chatvault/uploads
+      - ./media:/var/www/chatvault/media
+      - ./backend:/app
+      - /app/node_modules
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-chatvault}
+      DB_USER: ${DB_USER:-chatvault}
+      DB_PASSWORD: ${DB_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRY: ${JWT_EXPIRY:-7d}
+      MAX_UPLOAD_SIZE: ${MAX_UPLOAD_SIZE:-524288000}
+      UPLOADS_DIR: /var/www/chatvault/uploads
+      MEDIA_DIR: /var/www/chatvault/media
+      PORT: 3001
+      NODE_ENV: ${NODE_ENV:-production}
+    ports:
+      - "3001:3001"
+    networks:
+      - chatvault-network
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: chatvault-worker
+    restart: unless-stopped
+    command: npm run worker
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./uploads:/var/www/chatvault/uploads
+      - ./media:/var/www/chatvault/media
+      - ./backend:/app
+      - /app/node_modules
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-chatvault}
+      DB_USER: ${DB_USER:-chatvault}
+      DB_PASSWORD: ${DB_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      UPLOADS_DIR: /var/www/chatvault/uploads
+      MEDIA_DIR: /var/www/chatvault/media
+      NODE_ENV: ${NODE_ENV:-production}
+    networks:
+      - chatvault-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3001}
+    container_name: chatvault-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "5173:80"
+    networks:
+      - chatvault-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: chatvault-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./media:/var/www/chatvault/media:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - chatvault-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  chatvault-network:
+    driver: bridge

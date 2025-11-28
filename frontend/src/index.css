@@ -1,0 +1,97 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* WhatsApp Web Custom Styles */
+@layer base {
+  * {
+    @apply border-wa-border dark:border-wa-border-dark;
+  }
+
+  body {
+    @apply bg-wa-panel dark:bg-wa-panel-dark text-wa-text dark:text-wa-text-dark;
+    font-family: 'Segoe UI', Helvetica Neue, Helvetica, Lucida Grande, Arial, sans-serif;
+  }
+
+  /* Custom scrollbar (WhatsApp style) */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-400 dark:bg-gray-600 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-500 dark:bg-gray-500;
+  }
+}
+
+@layer components {
+  /* Message bubble tail */
+  .message-tail-sent {
+    position: absolute;
+    right: -8px;
+    bottom: 0;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 0 0 13px 8px;
+    @apply border-transparent border-b-wa-sent dark:border-b-wa-sent-dark;
+  }
+
+  .message-tail-received {
+    position: absolute;
+    left: -8px;
+    bottom: 0;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 0 8px 13px 0;
+    @apply border-transparent border-b-wa-received dark:border-b-wa-received-dark;
+  }
+
+  /* Loading spinner */
+  .spinner {
+    border: 2px solid rgba(0, 0, 0, 0.1);
+    border-left-color: #25D366;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* WhatsApp chat background pattern (optional) */
+  .chat-pattern {
+    background-color: #EFEAE2;
+    background-image: 
+      linear-gradient(to bottom, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0) 100%),
+      repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 10px,
+        rgba(0,0,0,0.02) 10px,
+        rgba(0,0,0,0.02) 20px
+      );
+  }
+
+  .dark .chat-pattern {
+    background-color: #0B141A;
+    background-image: none;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
