@@ -19,6 +19,8 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@tus/file-store": "^2.0.0",
+    "@tus/server": "^2.3.0",
     "bcrypt": "^5.1.1",
     "better-sqlite3": "^12.4.6",
     "bull": "^4.12.0",

@@ -8,6 +8,7 @@ const authRoutes = require('./routes/auth');
 const uploadRoutes = require('./routes/upload');
 const chatsRoutes = require('./routes/chats');
 const mediaRoutes = require('./routes/media');
+const tusServer = require('./config/tusServer');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -58,6 +59,13 @@ app.get('/health', (req, res) => {
 
 // API routes
 app.use('/api/auth', authRoutes);
+
+// Tus resumable upload endpoint (with auth middleware)
+const authMiddleware = require('./middleware/auth');
+app.all('/api/upload/tus/*', authMiddleware, (req, res) => {
+    tusServer.handle(req, res);
+});
+
 app.use('/api/upload', uploadRoutes);
 app.use('/api/chats', chatsRoutes);
 app.use('/api/media', mediaRoutes);
