@@ -35,10 +35,10 @@ const Dashboard = () => {
                 </div>
             )}
 
-            <div className="flex-1 flex overflow-hidden">
+            <div className="flex-1 flex overflow-hidden min-h-0">
                 {/* Left Sidebar - Chat List */}
                 <div className={`w-full md:w-[400px] flex-shrink-0 border-r border-wa-border dark:border-wa-border-dark ${selectedChat ? 'hidden md:flex' : 'flex'
-                    } flex-col`}>
+                    } flex-col min-h-0`}>
                     <ChatList
                         key={refreshTrigger}
                         selectedChat={selectedChat}
@@ -48,10 +48,10 @@ const Dashboard = () => {
                 </div>
 
                 {/* Right Panel - Chat Window */}
-                <div className={`flex-1 ${selectedChat ? 'flex' : 'hidden md:flex'} flex-col`}>
+                <div className={`flex-1 ${selectedChat ? 'flex' : 'hidden md:flex'} flex-col min-w-0 min-h-0`}>
                     {/* Mobile back button */}
                     {selectedChat && (
-                        <div className="md:hidden bg-wa-panel dark:bg-wa-received-dark px-4 py-2 border-b border-wa-border dark:border-wa-border-dark">
+                        <div className="md:hidden bg-wa-panel dark:bg-wa-received-dark px-4 py-2 border-b border-wa-border dark:border-wa-border-dark flex-shrink-0">
                             <button
                                 onClick={() => setSelectedChat(null)}
                                 className="text-wa-green hover:text-wa-green-dark font-medium"

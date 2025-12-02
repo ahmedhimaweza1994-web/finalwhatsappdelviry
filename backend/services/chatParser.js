@@ -46,6 +46,18 @@ class ChatParser {
     /**
      * Parse WhatsApp chat .txt file
      */
+    /**
+     * Clean text by removing Unicode control characters (like LTR marks)
+     */
+    cleanText(text) {
+        // Remove LTR/RTL marks and other invisible control characters
+        // \u200E is LTR mark, \u200F is RTL mark, \u202A-\u202E are embedding marks
+        return text.replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]/g, '').trim();
+    }
+
+    /**
+     * Parse WhatsApp chat .txt file
+     */
     async parse(filePath) {
         const content = await fs.readFile(filePath, 'utf-8');
         const lines = content.split('\n');
@@ -55,7 +67,8 @@ class ChatParser {
         let orderIndex = 0;
 
         for (let i = 0; i < lines.length; i++) {
-            const line = lines[i].trim();
+            // Clean the line of invisible characters
+            const line = this.cleanText(lines[i]);
             if (!line) continue;
 
             // Try to match timestamp patterns
@@ -105,15 +118,19 @@ class ChatParser {
                 const timestamp = this.parseTimestamp(date, time);
                 if (!timestamp) continue;
 
+                // Clean sender and body
+                const cleanSender = this.cleanText(sender);
+                const cleanBodyText = this.cleanText(body);
+
                 // Detect message type and extract media info
-                const { messageType, mediaFilename, cleanBody } = this.detectMessageType(body);
+                const { messageType, mediaFilename, cleanBody } = this.detectMessageType(cleanBodyText);
 
                 // Check if system message
-                const isSystemMessage = this.isSystemMessage(body);
+                const isSystemMessage = this.isSystemMessage(cleanBody);
 
                 return {
                     timestamp,
-                    senderName: sender.trim(),
+                    senderName: cleanSender,
                     senderIsMe: false, // Will be updated later
                     body: cleanBody,
                     messageType: isSystemMessage ? 'system' : messageType,
@@ -146,13 +163,16 @@ class ChatParser {
         const senderList = Array.from(senders);
         let meSender = null;
 
+        console.log('[Parser] Identifying sender. Participants:', senderList);
+        console.log('[Parser] Chat Name:', chatName);
+
         // Strategy 1: Check for "You" or "Me"
         meSender = senderList.find(s => s.toLowerCase() === 'you' || s.toLowerCase() === 'me');
 
         // Strategy 2: If 2 participants, and one matches chat name, the other is me
         if (!meSender && senderList.length === 2 && chatName) {
             // Normalize names for comparison (remove spaces, special chars)
-            const normalizedChatName = chatName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+            const normalizedChatName = this.cleanText(chatName).replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
 
             const otherPerson = senderList.find(s => {
                 const normalizedSender = s.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
