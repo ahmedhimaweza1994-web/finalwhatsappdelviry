@@ -127,30 +127,47 @@ parseQueue.process(async (job) => {
             metadata: msg.metadata || {}
         }));
 
-        // Bulk insert messages
-        const savedMessages = await Message.bulkCreate(messageData);
+        // Bulk insert messages in batches to avoid PostgreSQL parameter limit (65535)
+        // Each message has 8 parameters, so 2000 messages = 16000 params (safe)
+        const BATCH_SIZE = 2000;
+        const savedMessages = [];
+
+        for (let i = 0; i < messageData.length; i += BATCH_SIZE) {
+            const batch = messageData.slice(i, i + BATCH_SIZE);
+            console.log(`[Worker] Inserting message batch ${i / BATCH_SIZE + 1}/${Math.ceil(messageData.length / BATCH_SIZE)}`);
+            const savedBatch = await Message.bulkCreate(batch);
+            savedMessages.push(...savedBatch);
+        }
 
         // Prepare media data
         const mediaToInsert = [];
         for (let i = 0; i < mappedMessages.length; i++) {
             const msg = mappedMessages[i];
             if (msg.permanentMediaPath) {
-                mediaToInsert.push({
-                    messageId: savedMessages[i].id,
-                    chatId,
-                    userId,
-                    originalName: path.basename(msg.mediaPath),
-                    storagePath: msg.permanentMediaPath,
-                    thumbPath: msg.thumbPath,
-                    mimeType: msg.mimeType,
-                    sizeBytes: msg.mediaSize || 0
-                });
+                // We need to find the corresponding saved message ID
+                // Since we inserted in order, the indices should match
+                if (savedMessages[i]) {
+                    mediaToInsert.push({
+                        messageId: savedMessages[i].id,
+                        chatId,
+                        userId,
+                        originalName: path.basename(msg.mediaPath),
+                        storagePath: msg.permanentMediaPath,
+                        thumbPath: msg.thumbPath,
+                        mimeType: msg.mimeType,
+                        sizeBytes: msg.mediaSize || 0
+                    });
+                }
             }
         }
 
-        // Bulk insert media
+        // Bulk insert media in batches
         if (mediaToInsert.length > 0) {
-            await MediaFile.bulkCreate(mediaToInsert);
+            for (let i = 0; i < mediaToInsert.length; i += BATCH_SIZE) {
+                const batch = mediaToInsert.slice(i, i + BATCH_SIZE);
+                console.log(`[Worker] Inserting media batch ${i / BATCH_SIZE + 1}/${Math.ceil(mediaToInsert.length / BATCH_SIZE)}`);
+                await MediaFile.bulkCreate(batch);
+            }
         }
 
         // Step 7: Update chat status (100%)
