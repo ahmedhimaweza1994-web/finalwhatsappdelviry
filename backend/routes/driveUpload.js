@@ -59,7 +59,7 @@ router.post('/', authMiddleware, async (req, res) => {
             const chat = await Chat.create(userId, chatName, 'drive_import.zip', uploadUuid);
 
             // Queue parse job
-            await parseQueue.add({
+            const job = await parseQueue.add({
                 userId,
                 chatId: chat.id,
                 zipPath: destPath,
@@ -75,7 +75,8 @@ router.post('/', authMiddleware, async (req, res) => {
             activeDownloads.set(uploadUuid, {
                 status: 'completed',
                 progress: 100,
-                chatId: chat.id
+                chatId: chat.id,
+                jobId: job.id
             });
 
         }).catch(error => {

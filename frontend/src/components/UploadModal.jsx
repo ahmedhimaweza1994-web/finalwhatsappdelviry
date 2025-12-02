@@ -39,7 +39,7 @@ const UploadModal = ({ onClose, onSuccess }) => {
                         setProgress(0);
 
                         // Start polling for parse job
-                        pollJobStatus(statusRes.data.chatId);
+                        pollJobStatus(statusRes.data.jobId);
                     } else if (statusRes.data.status === 'error') {
                         clearInterval(interval);
                         throw new Error(statusRes.data.error);
