@@ -49,7 +49,8 @@ parseQueue.process(async (job) => {
         const mediaFiles = await zipParser.findMediaFiles(extractPath);
         const chatName = zipParser.getChatName(chatFile);
 
-        // Update chat name
+        // DO NOT update chat name here - it should already be set from user's custom input or ZIP filename
+        // Only update parsing status and stats
         await Chat.updateParseStatus(chatId, 'processing');
         await Chat.updateStats(chatId, 0, await zipParser.getDirectorySize(extractPath));
 

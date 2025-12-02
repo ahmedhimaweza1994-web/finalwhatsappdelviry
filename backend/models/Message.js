@@ -45,7 +45,7 @@ class Message {
        LEFT JOIN media_files mf ON mf.message_id = m.id
        WHERE m.chat_id = $1
        GROUP BY m.id
-       ORDER BY m.order_index DESC
+       ORDER BY m.order_index ASC
        LIMIT $2 OFFSET $3`,
             [chatId, limit, offset]
         );
