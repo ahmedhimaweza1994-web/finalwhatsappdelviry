@@ -53,7 +53,7 @@ const UploadModal = ({ onClose, onSuccess }) => {
         const token = localStorage.getItem('token');
 
         const upload = new Upload(file, {
-            endpoint: '/api/upload/tus/',
+            endpoint: `${window.location.protocol}//${window.location.host}/api/upload/tus/`,
             retryDelays: [0, 3000, 5000, 10000, 20000],
             metadata: {
                 filename: file.name,
@@ -192,7 +192,7 @@ const UploadModal = ({ onClose, onSuccess }) => {
                                 )}
                             </p>
                             <p className="text-xs text-wa-text-secondary dark:text-wa-text-secondary-dark">
-                                Maximum size: 500MB
+                                Maximum size: 10GB
                             </p>
                             <input
                                 ref={fileInputRef}
