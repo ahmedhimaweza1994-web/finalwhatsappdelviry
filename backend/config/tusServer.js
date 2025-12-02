@@ -1,11 +1,10 @@
-const { S3Store } = require('@tus/server');
+const { FileStore } = require('@tus/file-store');
 const path = require('path');
 const fs = require('fs').promises;
 const Chat = require('../models/Chat');
 const parseQueue = require('../workers/parseWorker');
 
-const datastore = new S3Store({
-    partSize: 8 * 1024 * 1024, // 8MB
+const datastore = new FileStore({
     directory: process.env.TUS_UPLOAD_DIR || '/tmp/tus-uploads'
 });
 
