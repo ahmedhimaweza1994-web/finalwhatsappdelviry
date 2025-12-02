@@ -14,6 +14,10 @@ class MediaMapper {
      * @param {Array} mediaFiles - List of extracted media file paths
      */
     async mapMedia(messages, mediaFiles) {
+        console.log(`[MediaMapper] ========== STARTING MEDIA MAPPING ==========`);
+        console.log(`[MediaMapper] Total messages: ${messages.length}`);
+        console.log(`[MediaMapper] Total media files: ${mediaFiles.length}`);
+
         // Create a lookup map of media files by filename
         const mediaLookup = new Map();
 
@@ -29,6 +33,8 @@ class MediaMapper {
         }
 
         const mappedMessages = [];
+        let successfulMappings = 0;
+        let missedMappings = 0;
 
         for (const message of messages) {
             const mappedMessage = { ...message };
@@ -49,18 +55,25 @@ class MediaMapper {
                     try {
                         const stats = await fs.stat(matchedFile);
                         mappedMessage.mediaSize = stats.size;
+                        successfulMappings++;
+                        console.log(`[MediaMapper] ✓ Mapped: "${message.mediaFilename}" -> ${path.basename(matchedFile)}`);
                     } catch (error) {
-                        console.error(`Failed to get file size for ${matchedFile}:`, error);
+                        console.error(`[MediaMapper] Failed to get file size for ${matchedFile}:`, error);
                     }
                 } else {
                     // Media file not found
                     mappedMessage.mediaMissing = true;
-                    console.warn(`Media file not found: ${message.mediaFilename}`);
+                    missedMappings++;
+                    console.warn(`[MediaMapper] ✗ NOT FOUND: "${message.mediaFilename}"`);
                 }
             }
 
             mappedMessages.push(mappedMessage);
         }
+
+        console.log(`[MediaMapper] ========== MAPPING COMPLETE ==========`);
+        console.log(`[MediaMapper] Successful mappings: ${successfulMappings}`);
+        console.log(`[MediaMapper] Missed mappings: ${missedMappings}`);
 
         return mappedMessages;
     }

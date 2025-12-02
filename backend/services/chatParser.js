@@ -163,45 +163,102 @@ class ChatParser {
         const senderList = Array.from(senders);
         let meSender = null;
 
-        console.log('[Parser] Identifying sender. Participants:', senderList);
-        console.log('[Parser] Chat Name:', chatName);
+        console.log(`[Parser] ========== SENDER IDENTIFICATION ==========`);
+        console.log(`[Parser] Chat Name: "${chatName}"`);
+        console.log(`[Parser] Unique Senders (${senderList.length}):`, senderList);
 
         // Strategy 1: Check for "You" or "Me"
-        meSender = senderList.find(s => s.toLowerCase() === 'you' || s.toLowerCase() === 'me');
+        meSender = senderList.find(s => {
+            const lower = s.toLowerCase();
+            return lower === 'you' || lower === 'me' || lower === 'أنت' || lower === 'انا';
+        });
 
-        // Strategy 2: If 2 participants, and one matches chat name, the other is me
+        if (meSender) {
+            console.log(`[Parser] ✓ Strategy 1: Found explicit 'me' identifier: "${meSender}"`);
+        }
+
+        // Strategy 2: If exactly 2 participants, one matches chat name -> other is me
         if (!meSender && senderList.length === 2 && chatName) {
-            // Normalize names for comparison (remove spaces, special chars)
-            const normalizedChatName = this.cleanText(chatName).replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+            const normalizedChatName = this.cleanText(chatName).replace(/[^a-zA-Z0-9\u0600-\u06FF]/g, '').toLowerCase();
 
-            const otherPerson = senderList.find(s => {
-                const normalizedSender = s.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-                return normalizedChatName.includes(normalizedSender) || normalizedSender.includes(normalizedChatName);
-            });
+            console.log(`[Parser] Strategy 2: Checking 2-person chat...`);
+            console.log(`[Parser]   Normalized chat name: "${normalizedChatName}"`);
 
-            if (otherPerson) {
-                meSender = senderList.find(s => s !== otherPerson);
+            for (const sender of senderList) {
+                const normalizedSender = sender.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g, '').toLowerCase();
+                console.log(`[Parser]   Checking "${sender}" -> normalized: "${normalizedSender}"`);
+
+                // Check if chat name contains sender name or vice versa
+                if (normalizedChatName.includes(normalizedSender) || normalizedSender.includes(normalizedChatName)) {
+                    const otherSender = senderList.find(s => s !== sender);
+                    meSender = otherSender;
+                    console.log(`[Parser] ✓ Strategy 2: "${sender}" matches chat name, so "${meSender}" is me`);
+                    break;
+                }
             }
         }
 
-        // Strategy 3: Heuristic - if one sender is a phone number and other is a name, assume name is me
-        // (Only if we haven't found me yet)
+        // Strategy 3: Heuristic - phone number vs name
         if (!meSender && senderList.length === 2) {
-            const isPhone = (s) => /^[\d\s\+\-]+$/.test(s);
+            const isPhone = (s) => /^[\d\s\+\-()]+$/.test(s.trim());
             const s1 = senderList[0];
             const s2 = senderList[1];
 
-            if (isPhone(s1) && !isPhone(s2)) meSender = s2;
-            else if (!isPhone(s1) && isPhone(s2)) meSender = s1;
+            console.log(`[Parser] Strategy 3: Phone number detection...`);
+            console.log(`[Parser]   "${s1}" is phone? ${isPhone(s1)}`);
+            console.log(`[Parser]   "${s2}" is phone? ${isPhone(s2)}`);
+
+            if (isPhone(s1) && !isPhone(s2)) {
+                meSender = s2;
+                console.log(`[Parser] ✓ Strategy 3: "${s2}" is name (not phone), so it's me`);
+            } else if (!isPhone(s1) && isPhone(s2)) {
+                meSender = s1;
+                console.log(`[Parser] ✓ Strategy 3: "${s1}" is name (not phone), so it's me`);
+            }
         }
 
-        console.log(`[Parser] Identified 'me' sender as: ${meSender}`);
+        // Strategy 4: If still not found and 2 senders, count messages and assume sender with fewer is "me"
+        // (Most people receive more than they send in customer service chats)
+        if (!meSender && senderList.length === 2) {
+            const messageCounts = {};
+            messages.forEach(msg => {
+                if (msg.messageType !== 'system') {
+                    messageCounts[msg.senderName] = (messageCounts[msg.senderName] || 0) + 1;
+                }
+            });
+
+            console.log(`[Parser] Strategy 4: Message count heuristic...`);
+            console.log(`[Parser]   Message counts:`, messageCounts);
+
+            const sorted = Object.entries(messageCounts).sort((a, b) => a[1] - b[1]);
+            // If one sender has significantly fewer messages (< 40% of total), they might be "me"
+            const total = sorted[0][1] + sorted[1][1];
+            if (sorted[0][1] / total < 0.4) {
+                meSender = sorted[0][0];
+                console.log(`[Parser] ✓ Strategy 4: "${meSender}" has fewer messages (${sorted[0][1]}/${total}), likely me`);
+            }
+        }
+
+        if (!meSender && senderList.length === 2) {
+            // Default: first sender alphabetically is "me" as last resort
+            meSender = senderList.sort()[0];
+            console.log(`[Parser] ⚠ No strategy worked, defaulting to: "${meSender}"`);
+        }
+
+        console.log(`[Parser] ========== FINAL RESULT: "${meSender}" ==========`);
 
         // Update messages
-        return messages.map(msg => ({
+        const result = messages.map(msg => ({
             ...msg,
             senderIsMe: meSender ? msg.senderName === meSender : false
         }));
+
+        // Log summary
+        const meCount = result.filter(m => m.senderIsMe).length;
+        const otherCount = result.filter(m => !m.senderIsMe && m.messageType !== 'system').length;
+        console.log(`[Parser] Final counts: ${meCount} from me, ${otherCount} from others`);
+
+        return result;
     }
 
     /**
@@ -292,14 +349,46 @@ class ChatParser {
     detectMessageType(body) {
         const cleanBody = body.trim();
 
-        // Check for media patterns
+        // Handle quote/reply messages (WhatsApp uses > for quotes)
+        // These should be treated as text, not media
+        if (cleanBody.startsWith('>') && !cleanBody.includes('<attached:')) {
+            return {
+                messageType: 'text',
+                mediaFilename: null,
+                cleanBody: cleanBody
+            };
+        }
+
+        // Improved media patterns with better matching
+        const improvedMediaPatterns = {
+            // Match <attached: filename> format (most reliable)
+            image: /<attached:\s*([^>]+\.(?:jpg|jpeg|png|gif|webp|bmp))[>\s]*/i,
+            video: /<attached:\s*([^>]+\.(?:mp4|avi|mov|3gp|mkv|webm))[>\s]*/i,
+            audio: /<attached:\s*([^>]+\.(?:opus|mp3|m4a|ogg|aac|amr))[>\s]*/i,
+            document: /<attached:\s*([^>]+\.(?:pdf|doc|docx|xls|xlsx|zip|rar|txt))[>\s]*/i,
+        };
+
+        // Try improved patterns first
+        for (const [type, pattern] of Object.entries(improvedMediaPatterns)) {
+            const match = cleanBody.match(pattern);
+            if (match && match[1]) {
+                const mediaFilename = this.cleanText(match[1].trim());
+                console.log(`[Parser] Detected ${type} media: ${mediaFilename}`);
+                return {
+                    messageType: type,
+                    mediaFilename,
+                    cleanBody: cleanBody.replace(pattern, '').trim()
+                };
+            }
+        }
+
+        // Fallback to original patterns
         for (const [type, pattern] of Object.entries(this.mediaPatterns)) {
             const match = cleanBody.match(pattern);
             if (match) {
-                // Extract filename if present
                 let mediaFilename = null;
                 if (match[2] && !cleanBody.includes('omitted')) {
-                    mediaFilename = match[2].trim();
+                    mediaFilename = this.cleanText(match[2].trim());
                 }
 
                 return {
