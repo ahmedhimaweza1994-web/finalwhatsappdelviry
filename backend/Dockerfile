@@ -1,7 +1,9 @@
 FROM node:20-alpine
 
 # Install ffmpeg and build dependencies for native modules (better-sqlite3)
-RUN apk add --no-cache ffmpeg python3 make g++ py3-setuptools curl
+# Also install gdown for reliable Google Drive downloads
+RUN apk add --no-cache ffmpeg python3 make g++ py3-setuptools curl py3-pip && \
+    pip3 install gdown --break-system-packages
 
 WORKDIR /app
 
