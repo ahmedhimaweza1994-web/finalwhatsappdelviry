@@ -1,4 +1,4 @@
-const axios = require('axios');
+const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
@@ -25,109 +25,64 @@ class DriveDownloader {
             throw new Error('Invalid Google Drive URL');
         }
 
-        const downloadUrl = 'https://drive.google.com/uc?export=download';
+        // Use gdown which is installed in the Docker container
+        // gdown https://drive.google.com/uc?id=FILEID -O /path/to/dest
+        const driveUrl = `https://drive.google.com/uc?id=${fileId}`;
 
-        // Browser-like headers to avoid detection
-        const headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Connection': 'keep-alive',
-            'Sec-Fetch-Dest': 'document',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'none',
-            'Sec-Fetch-User': '?1',
-            'Upgrade-Insecure-Requests': '1'
-        };
+        console.log(`[Drive] Starting download for ${fileId} using gdown...`);
 
-        try {
-            // First attempt - try direct download
-            let response = await axios({
-                method: 'GET',
-                url: downloadUrl,
-                params: { id: fileId },
-                headers,
-                responseType: 'stream',
-                validateStatus: status => status < 400,
-                maxRedirects: 5
+        return new Promise((resolve, reject) => {
+            // --fuzzy helps with extracting file ID from various URL formats
+            // --continue allows resuming if supported
+            const gdown = spawn('gdown', [driveUrl, '-O', destPath, '--fuzzy']);
+
+            let errorOutput = '';
+
+            gdown.stdout.on('data', (data) => {
+                console.log(`[gdown] ${data}`);
             });
 
-            // Check if we got a virus scan warning (HTML response instead of file)
-            if (response.headers['content-type'] && response.headers['content-type'].includes('text/html')) {
-                console.log('[Drive] HTML response detected, checking for virus scan warning...');
+            gdown.stderr.on('data', (data) => {
+                const output = data.toString();
+                // gdown writes progress to stderr
+                // Example: 45%|████▌     | 1.23G/2.72G [00:15<00:20, 75.1MB/s]
+                errorOutput += output;
 
-                // We need to get the page content to find the token
-                const pageResponse = await axios({
-                    method: 'GET',
-                    url: downloadUrl,
-                    params: { id: fileId },
-                    headers,
-                    responseType: 'text',
-                    validateStatus: status => status < 400
-                });
-
-                // Try to find confirm token in various formats
-                const confirmMatch = pageResponse.data.match(/confirm=([a-zA-Z0-9_-]+)/) ||
-                    pageResponse.data.match(/name="confirm" value="([a-zA-Z0-9_-]+)"/);
-
-                if (confirmMatch && confirmMatch[1]) {
-                    const confirmToken = confirmMatch[1];
-                    console.log('[Drive] Virus scan warning detected, confirming download...');
-
-                    // CRITICAL: Extract cookies from the first response to pass to the second request
-                    // Google requires the session cookies to accept the confirmation
-                    const cookies = pageResponse.headers['set-cookie'];
-                    const cookieHeader = cookies ? cookies.map(c => c.split(';')[0]).join('; ') : '';
-
-                    response = await axios({
-                        method: 'GET',
-                        url: downloadUrl,
-                        params: {
-                            id: fileId,
-                            confirm: confirmToken
-                        },
-                        headers: {
-                            ...headers,
-                            'Cookie': cookieHeader
-                        },
-                        responseType: 'stream',
-                        validateStatus: status => status < 400
-                    });
-
-                    // Check again if we got HTML (failed to bypass)
-                    if (response.headers['content-type'] && response.headers['content-type'].includes('text/html')) {
-                        throw new Error('Failed to bypass Google Drive virus scan warning (got HTML again). The file might be private or too large for this method.');
+                if (onProgress) {
+                    const match = output.match(/(\d+)%/);
+                    if (match) {
+                        const percent = parseInt(match[1]);
+                        onProgress(percent, 100);
                     }
+                }
+            });
 
+            gdown.on('close', (code) => {
+                if (code === 0) {
+                    // Verify file exists and is not empty
+                    if (fs.existsSync(destPath) && fs.statSync(destPath).size > 0) {
+                        resolve();
+                    } else {
+                        reject(new Error('Download completed but file is empty or missing'));
+                    }
                 } else {
-                    // It's HTML but we couldn't find a confirm token. 
-                    throw new Error('Google Drive link returned an HTML page instead of a file. Make sure the link is public (Anyone with the link).');
-                }
-            }
+                    console.error(`[gdown] Exited with code ${code}`);
+                    console.error(`[gdown] Error output: ${errorOutput}`);
 
-            // Pipe to file
-            const writer = fs.createWriteStream(destPath);
-            const totalLength = response.headers['content-length'];
-
-            let downloaded = 0;
-            response.data.on('data', (chunk) => {
-                downloaded += chunk.length;
-                if (onProgress && totalLength) {
-                    onProgress(downloaded, parseInt(totalLength));
+                    if (errorOutput.includes('Permission denied')) {
+                        reject(new Error('Permission denied: Make sure the file is Public (Anyone with the link)'));
+                    } else if (errorOutput.includes('Too many users')) {
+                        reject(new Error('Google Drive quota exceeded: Too many users have viewed or downloaded this file recently'));
+                    } else {
+                        reject(new Error(`gdown failed with code ${code}: ${errorOutput.slice(-200)}`));
+                    }
                 }
             });
 
-            response.data.pipe(writer);
-
-            return new Promise((resolve, reject) => {
-                writer.on('finish', resolve);
-                writer.on('error', reject);
-                response.data.on('error', reject);
+            gdown.on('error', (err) => {
+                reject(new Error(`Failed to start gdown: ${err.message}`));
             });
-
-        } catch (error) {
-            throw new Error(`Download failed: ${error.message}`);
-        }
+        });
     }
 }
 
