@@ -49,13 +49,8 @@ class DriveDownloader {
 
             // If the response is HTML (likely the warning page), we need to get the confirm token
             if (response.headers['content-type'] && response.headers['content-type'].includes('text/html')) {
-                // We need to read the stream to find the token, but that consumes it.
-                // Let's try a different approach: HEAD request first? No, Drive doesn't support HEAD well for this.
+                console.log('[Drive] HTML response detected, checking for virus scan warning...');
 
-                // Let's try to get the confirmation token from the initial request if possible.
-                // Actually, the most reliable way without API key for large files is to check for the cookie/confirm param.
-
-                // Let's try to fetch the page as text first to find the token
                 const pageResponse = await axios({
                     method: 'GET',
                     url: downloadUrl,
@@ -63,21 +58,36 @@ class DriveDownloader {
                     responseType: 'text'
                 });
 
-                if (pageResponse.data.includes('download_warning')) {
-                    const match = pageResponse.data.match(/confirm=([a-zA-Z0-9_-]+)/);
-                    if (match && match[1]) {
-                        const confirmToken = match[1];
-                        // Retry with confirm token
-                        response = await axios({
-                            method: 'GET',
-                            url: downloadUrl,
-                            params: {
-                                id: fileId,
-                                confirm: confirmToken
-                            },
-                            responseType: 'stream'
-                        });
+                // Try to find confirm token in various formats
+                // 1. Link with confirm=...
+                // 2. Form action with confirm=...
+                // 3. Just the confirm token in the text
+                const confirmMatch = pageResponse.data.match(/confirm=([a-zA-Z0-9_-]+)/) ||
+                    pageResponse.data.match(/name="confirm" value="([a-zA-Z0-9_-]+)"/);
+
+                if (confirmMatch && confirmMatch[1]) {
+                    const confirmToken = confirmMatch[1];
+                    console.log('[Drive] Virus scan warning detected, confirming download...');
+
+                    response = await axios({
+                        method: 'GET',
+                        url: downloadUrl,
+                        params: {
+                            id: fileId,
+                            confirm: confirmToken
+                        },
+                        responseType: 'stream'
+                    });
+
+                    // Check again if we got HTML (failed to bypass)
+                    if (response.headers['content-type'] && response.headers['content-type'].includes('text/html')) {
+                        throw new Error('Failed to bypass Google Drive virus scan warning (got HTML again)');
                     }
+
+                } else {
+                    // It's HTML but we couldn't find a confirm token. 
+                    // Could be a private file, deleted file, or just a generic error page.
+                    throw new Error('Google Drive link returned an HTML page instead of a file. Make sure the link is public (Anyone with the link).');
                 }
             }
 
