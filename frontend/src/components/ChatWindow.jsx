@@ -26,14 +26,17 @@ const ChatWindow = ({ chat, onDelete }) => {
         if (messages.length > 0) {
             const latest = messages.slice(-messageLimit);
             setDisplayedMessages(latest);
+
+            // Only scroll to bottom on initial load or when switching chats, not when loading more
+            if (messageLimit === 50) {
+                setTimeout(() => scrollToBottom(), 100);
+            }
         } else {
             setDisplayedMessages([]);
         }
     }, [messages, messageLimit]);
 
-    useEffect(() => {
-        scrollToBottom();
-    }, [displayedMessages]);
+    // Remove auto-scroll on every message change - only scroll on initial load
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
