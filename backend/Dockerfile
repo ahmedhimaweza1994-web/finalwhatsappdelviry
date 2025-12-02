@@ -1,7 +1,7 @@
 FROM node:20-alpine
 
 # Install ffmpeg and build dependencies for native modules (better-sqlite3)
-RUN apk add --no-cache ffmpeg python3 make g++ py3-setuptools
+RUN apk add --no-cache ffmpeg python3 make g++ py3-setuptools curl
 
 WORKDIR /app
 
