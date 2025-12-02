@@ -1,7 +1,7 @@
-FROM node:18-alpine
+FROM node:20-alpine
 
-# Install ffmpeg for video thumbnails (optional)
-RUN apk add --no-cache ffmpeg
+# Install ffmpeg and build dependencies for native modules (better-sqlite3)
+RUN apk add --no-cache ffmpeg python3 make g++ py3-setuptools
 
 WORKDIR /app
 
