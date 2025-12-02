@@ -48,58 +48,43 @@ router.post('/', authMiddleware, async (req, res) => {
             const progress = Math.round((downloaded / total) * 100);
             const state = activeDownloads.get(uploadUuid);
             if (state) {
-                state.progress = progress;
-                activeDownloads.set(uploadUuid, state);
-            }
-        }).then(async () => {
-            console.log(`[Drive] Download completed: ${uploadUuid}`);
-
-            // Extract friendly name from ZIP file path
-            const zipBasename = path.basename(destPath, path.extname(destPath));
-            const chatName = zipBasename !== 'raw' ? zipBasename.replace(/^WhatsApp Chat with\s+/i, '').trim() : `Drive Import ${new Date().toISOString().split('T')[0]}`;
-
-            // Create chat record
-            const chat = await Chat.create(userId, chatName, path.basename(destPath), uploadUuid);
-
-            // Queue parse job
-            const job = await parseQueue.add({
                 userId,
-                chatId: chat.id,
-                zipPath: destPath,
-                uploadUuid
+                    chatId: chat.id,
+                        zipPath: destPath,
+                            uploadUuid
             }, {
                 attempts: 3,
-                backoff: {
+                    backoff: {
                     type: 'exponential',
-                    delay: 5000
+                        delay: 5000
                 }
             });
 
-            activeDownloads.set(uploadUuid, {
-                status: 'completed',
-                progress: 100,
-                chatId: chat.id,
-                jobId: job.id
-            });
-
-        }).catch(error => {
-            console.error(`[Drive] Download failed: ${error.message}`);
-            activeDownloads.set(uploadUuid, {
-                status: 'error',
-                error: error.message
-            });
+        activeDownloads.set(uploadUuid, {
+            status: 'completed',
+            progress: 100,
+            chatId: chat.id,
+            jobId: job.id
         });
 
-        res.json({
-            message: 'Download started',
-            uploadUuid,
-            fileId
+    }).catch(error => {
+        console.error(`[Drive] Download failed: ${error.message}`);
+        activeDownloads.set(uploadUuid, {
+            status: 'error',
+            error: error.message
         });
+    });
+
+res.json({
+    message: 'Download started',
+    uploadUuid,
+    fileId
+});
 
     } catch (error) {
-        console.error('Drive upload error:', error);
-        res.status(500).json({ error: 'Failed to start download' });
-    }
+    console.error('Drive upload error:', error);
+    res.status(500).json({ error: 'Failed to start download' });
+}
 });
 
 // Check download status

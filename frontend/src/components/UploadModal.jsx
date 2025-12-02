@@ -12,6 +12,7 @@ const UploadModal = ({ onClose, onSuccess }) => {
     const [showGuide, setShowGuide] = useState(false);
     const [uploadMethod, setUploadMethod] = useState('direct'); // 'direct' or 'drive'
     const [driveLink, setDriveLink] = useState('');
+    const [customChatName, setCustomChatName] = useState('');
     const fileInputRef = useRef(null);
 
     const handleDriveUpload = async () => {
@@ -23,7 +24,10 @@ const UploadModal = ({ onClose, onSuccess }) => {
         setProgress(0);
 
         try {
-            const response = await api.post('/upload/drive', { url: driveLink });
+            const response = await api.post('/upload/drive', {
+                url: driveLink,
+                customChatName: customChatName.trim() || undefined
+            });
             const { uploadUuid } = response.data;
 
             // Poll for download status
@@ -274,17 +278,38 @@ const UploadModal = ({ onClose, onSuccess }) => {
                                 />
                             </div>
                         ) : (
-                            <div className="mb-4">
-                                <label className="block text-sm font-medium text-wa-text dark:text-wa-text-dark mb-2">
-                                    Google Drive Link
-                                </label>
-                                <input
-                                    type="text"
-                                    value={driveLink}
-                                    onChange={(e) => setDriveLink(e.target.value)}
-                                    placeholder="https://drive.google.com/file/d/..."
-                                    className="w-full px-4 py-2 rounded-lg border border-wa-border dark:border-wa-border-dark bg-white dark:bg-wa-bg-dark text-wa-text dark:text-wa-text-dark focus:outline-none focus:border-wa-green transition-colors"
-                                />
+                            <div>
+                                <div className="mb-4">
+                                    <label className="block text-sm font-medium text-wa-text dark:text-wa-text-dark mb-2">
+                                        Google Drive Link
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={driveLink}
+                                        onChange={(e) => setDriveLink(e.target.value)}
+                                        placeholder="https://drive.google.com/file/d/..."
+                                        className="w-full px-4 py-2 border border-wa-border dark:border-wa-border-dark rounded-lg bg-white dark:bg-wa-bg-dark text-wa-text dark:text-wa-text-dark focus:outline-none focus:ring-2 focus:ring-wa-green"
+                                        disabled={uploading}
+                                    />
+                                </div>
+
+                                <div className="mb-4">
+                                    <label className="block text-sm font-medium text-wa-text dark:text-wa-text-dark mb-2">
+                                        Custom Chat Name (Optional)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={customChatName}
+                                        onChange={(e) => setCustomChatName(e.target.value)}
+                                        placeholder="e.g., Work Group, Family Chat..."
+                                        className="w-full px-4 py-2 border border-wa-border dark:border-wa-border-dark rounded-lg bg-white dark:bg-wa-bg-dark text-wa-text dark:text-wa-text-dark focus:outline-none focus:ring-2 focus:ring-wa-green"
+                                        disabled={uploading}
+                                    />
+                                    <p className="text-xs text-wa-text-secondary dark:text-wa-text-secondary-dark mt-1">
+                                        Leave empty to use the ZIP filename
+                                    </p>
+                                </div>
+
                                 <p className="text-xs text-wa-text-secondary dark:text-wa-text-secondary-dark mt-2">
                                     Make sure the link is accessible (Anyone with the link)
                                 </p>

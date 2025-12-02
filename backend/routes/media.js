@@ -60,10 +60,9 @@ router.get('/:userId/:chatId/:type/:filename', authMiddleware, async (req, res) 
         // Set headers
         res.setHeader('Content-Type', contentType);
         res.setHeader('Content-Length', stats.size);
-        res.setHeader('Accept-Ranges', 'bytes'); // Important for audio/video
         res.setHeader('Cache-Control', 'private, max-age=31536000'); // Cache for 1 year
 
-        // Handle range requests for video/audio streaming
+        // Handle range requests for video streaming
         const range = req.headers.range;
         if (range) {
             const parts = range.replace(/bytes=/, '').split('-');
@@ -73,6 +72,7 @@ router.get('/:userId/:chatId/:type/:filename', authMiddleware, async (req, res) 
 
             res.status(206);
             res.setHeader('Content-Range', `bytes ${start}-${end}/${stats.size}`);
+            res.setHeader('Accept-Ranges', 'bytes');
             res.setHeader('Content-Length', chunksize);
 
             const stream = fs.createReadStream(filePath, { start, end });
