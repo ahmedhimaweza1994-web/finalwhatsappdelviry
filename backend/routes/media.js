@@ -57,10 +57,13 @@ router.get('/:userId/:chatId/:type/:filename', authMiddleware, async (req, res) 
 
         const contentType = mimeTypes[ext] || 'application/octet-stream';
 
-        // Set headers
+        // Set headers with CORS support for crossOrigin requests
         res.setHeader('Content-Type', contentType);
         res.setHeader('Content-Length', stats.size);
         res.setHeader('Cache-Control', 'private, max-age=31536000'); // Cache for 1 year
+        res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+        res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Range');
 
         // Handle range requests for video streaming
         const range = req.headers.range;
