@@ -6,50 +6,60 @@ import useInfiniteScroll from '../hooks/useInfiniteScroll';
 
 const ChatWindow = ({ chat, onDelete }) => {
     const [messages, setMessages] = useState([]);
+    const [displayedMessages, setDisplayedMessages] = useState([]);
+    const [messageLimit, setMessageLimit] = useState(50); // Start with 50 messages
     const [loading, setLoading] = useState(true);
-    const [hasMore, setHasMore] = useState(true);
-    const [offset, setOffset] = useState(0);
+    const [error, setError] = useState('');
     const [showScrollButton, setShowScrollButton] = useState(false);
     const [showMenu, setShowMenu] = useState(false);
     const messagesEndRef = useRef(null);
     const containerRef = useRef(null);
-    const [loadingMore, setLoadingMore] = useState(false);
 
     useEffect(() => {
-        if (chat) {
-            resetAndLoad();
+        if (chat?.id) {
+            fetchMessages();
         }
     }, [chat?.id]);
 
-    const resetAndLoad = () => {
-        setMessages([]);
-        setOffset(0);
-        setHasMore(true);
-        setLoading(true);
-        loadMessages(0, true);
-    };
-
-    const loadMessages = async () => {
-        try {
-            setLoading(true);
-            // Load ALL messages without pagination
-            const response = await api.get(`/chats/${chat.id}/messages`, {
-                params: { limit: 10000, offset: 0 } // Large limit to get all messages
-            });
-
-            const newMessages = response.data.messages || [];
-            setMessages(newMessages.reverse());
-            setTimeout(scrollToBottom, 100);
-        } catch (error) {
-            console.error('Failed to load messages:', error);
-        } finally {
-            setLoading(false);
+    useEffect(() => {
+        // Display only the latest messages based on limit
+        if (messages.length > 0) {
+            const latest = messages.slice(-messageLimit);
+            setDisplayedMessages(latest);
+        } else {
+            setDisplayedMessages([]);
         }
-    };
+    }, [messages, messageLimit]);
+
+    useEffect(() => {
+        scrollToBottom();
+    }, [displayedMessages]);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-        setShowScrollButton(false);
+        setShowScrollButton(false); // Hide button when scrolled to bottom
+    };
+
+    const loadMoreMessages = () => {
+        setMessageLimit(prev => prev + 50);
+    };
+
+    const fetchMessages = async () => {
+        try {
+            setLoading(true);
+            setError('');
+            // Load ALL messages without pagination from the API
+            const response = await api.get(`/chats/${chat.id}/messages`, {
+                params: { limit: 10000, offset: 0 } // Large limit to get all messages
+            });
+            setMessages(response.data.messages || []);
+            setMessageLimit(50); // Reset limit when switching chats
+        } catch (err) {
+            console.error('Error fetching messages:', err);
+            setError('Failed to load messages');
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleScroll = () => {
@@ -148,14 +158,25 @@ const ChatWindow = ({ chat, onDelete }) => {
                     </div>
                 ) : (
                     <>
-                        {messages.map((message, idx) => (
-                            <MessageBubble
-                                key={message.id}
-                                message={message}
-                                prevMessage={messages[idx - 1]}
-                            />
-                        ))}
-                        <div ref={messagesEndRef} />
+                        {/* Messages */}
+                        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                            {/* Load More Button */}
+                            {messages.length > messageLimit && (
+                                <div className="text-center py-4">
+                                    <button
+                                        onClick={loadMoreMessages}
+                                        className="px-4 py-2 bg-wa-green hover:bg-wa-green-dark text-white rounded-lg text-sm transition-colors"
+                                    >
+                                        Load Older Messages ({messages.length - messageLimit} more)
+                                    </button>
+                                </div>
+                            )}
+
+                            {displayedMessages.map((message) => (
+                                <MessageBubble key={message.id} message={message} />
+                            ))}
+                            <div ref={messagesEndRef} />
+                        </div>
                     </>
                 )}
             </div>
