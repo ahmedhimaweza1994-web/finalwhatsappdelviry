@@ -11,6 +11,7 @@ const datastore = new FileStore({
 const tusServer = new Server({
     path: '/api/upload/tus',
     datastore,
+    respectForwardedHeaders: true, // Respect X-Forwarded-Proto from nginx
     namingFunction: (req) => {
         const userId = req.userId || 'unknown';
         const timestamp = Date.now();
