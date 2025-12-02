@@ -35,12 +35,7 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter);
 
-// Stricter rate limiting for uploads
-const uploadLimiter = rateLimit({
-    windowMs: 60 * 60 * 1000, // 1 hour
-    max: 10 // limit each IP to 10 uploads per hour
-});
-app.use('/api/upload', uploadLimiter);
+// NO rate limiting for uploads - UNLIMITED
 
 // Request logging
 app.use((req, res, next) => {
