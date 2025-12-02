@@ -7,6 +7,8 @@ const AudioMessage = ({ message }) => {
     const [playing, setPlaying] = useState(false);
     const [duration, setDuration] = useState(0);
     const [currentTime, setCurrentTime] = useState(0);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(false);
 
     if (!media) {
         return (
@@ -31,19 +33,25 @@ const AudioMessage = ({ message }) => {
     const src = getMediaUrl(media.storage_path);
 
     const togglePlay = () => {
-        if (!audioRef.current) return;
+        if (!audioRef.current || loading || error) return;
 
         if (playing) {
             audioRef.current.pause();
+            setPlaying(false);
         } else {
-            audioRef.current.play();
+            audioRef.current.play().then(() => {
+                setPlaying(true);
+            }).catch(err => {
+                console.error('Audio playback error:', err);
+                setError(true);
+            });
         }
-        setPlaying(!playing);
     };
 
     const handleLoadedMetadata = () => {
         if (audioRef.current) {
             setDuration(audioRef.current.duration);
+            setLoading(false);
         }
     };
 
@@ -58,8 +66,18 @@ const AudioMessage = ({ message }) => {
         setCurrentTime(0);
     };
 
+    const handleError = (e) => {
+        console.error('Audio loading error:', e);
+        setError(true);
+        setLoading(false);
+    };
+
+    const handleCanPlay = () => {
+        setLoading(false);
+    };
+
     const formatTime = (seconds) => {
-        if (isNaN(seconds)) return '0:00';
+        if (isNaN(seconds) || seconds === 0) return '0:00';
         const mins = Math.floor(seconds / 60);
         const secs = Math.floor(seconds % 60);
         return `${mins}:${secs.toString().padStart(2, '0')}`;
@@ -67,16 +85,30 @@ const AudioMessage = ({ message }) => {
 
     const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
+    if (error) {
+        return (
+            <div className="flex items-center gap-2 text-sm text-red-500 py-2">
+                <span>🎵</span>
+                <span>Failed to load audio</span>
+            </div>
+        );
+    }
+
     return (
         <div className="w-full max-w-sm">
             <div className="flex items-center gap-2 bg-white/10 dark:bg-black/10 rounded-lg px-3 py-2">
                 {/* Play/Pause Button */}
                 <button
                     onClick={togglePlay}
-                    className="flex-shrink-0 w-10 h-10 rounded-full bg-wa-green hover:bg-wa-green-dark text-white flex items-center justify-center transition-colors"
+                    disabled={loading || error}
+                    className={`flex-shrink-0 w-10 h-10 rounded-full ${loading || error ? 'bg-gray-400 cursor-not-allowed' : 'bg-wa-green hover:bg-wa-green-dark'} text-white flex items-center justify-center transition-colors`}
                     aria-label={playing ? 'Pause' : 'Play'}
                 >
-                    {playing ? <FaPause size={14} /> : <FaPlay size={14} className="ml-0.5" />}
+                    {loading ? (
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                        playing ? <FaPause size={14} /> : <FaPlay size={14} className="ml-0.5" />
+                    )}
                 </button>
 
                 {/* Waveform/Progress */}
@@ -97,12 +129,12 @@ const AudioMessage = ({ message }) => {
             <audio
                 ref={audioRef}
                 src={src}
+                preload="metadata"
                 onLoadedMetadata={handleLoadedMetadata}
                 onTimeUpdate={handleTimeUpdate}
                 onEnded={handleEnded}
-                onError={(e) => {
-                    console.error('Audio playback error:', e);
-                }}
+                onError={handleError}
+                onCanPlay={handleCanPlay}
             />
 
             {message.body && <div className="text-sm mt-2">{message.body}</div>}
