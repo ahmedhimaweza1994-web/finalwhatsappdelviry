@@ -3,7 +3,7 @@ const User = require('../models/User');
 
 const authMiddleware = async (req, res, next) => {
     try {
-        // Get token from header or query param
+        // Get token from header or query param (for media files accessed via <img> or <audio> tags)
         let token;
 
         if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {

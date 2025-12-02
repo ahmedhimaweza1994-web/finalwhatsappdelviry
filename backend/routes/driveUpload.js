@@ -48,67 +48,29 @@ router.post('/', authMiddleware, async (req, res) => {
             const progress = Math.round((downloaded / total) * 100);
             const state = activeDownloads.get(uploadUuid);
             if (state) {
-                state.progress = progress;
-                activeDownloads.set(uploadUuid, state);
+
+                res.json({
+                    message: 'Download started',
+                    uploadUuid,
+                    fileId
+                });
+
+            } catch (error) {
+                console.error('Drive upload error:', error);
+                res.status(500).json({ error: 'Failed to start download' });
             }
-        }).then(async () => {
-            console.log(`[Drive] Download completed: ${uploadUuid}`);
-
-            // Create chat record
-            const chatName = `Drive Import ${new Date().toISOString().split('T')[0]}`;
-            const chat = await Chat.create(userId, chatName, 'drive_import.zip', uploadUuid);
-
-            // Queue parse job
-            const job = await parseQueue.add({
-                userId,
-                chatId: chat.id,
-                zipPath: destPath,
-                uploadUuid
-            }, {
-                attempts: 3,
-                backoff: {
-                    type: 'exponential',
-                    delay: 5000
-                }
-            });
-
-            activeDownloads.set(uploadUuid, {
-                status: 'completed',
-                progress: 100,
-                chatId: chat.id,
-                jobId: job.id
-            });
-
-        }).catch(error => {
-            console.error(`[Drive] Download failed: ${error.message}`);
-            activeDownloads.set(uploadUuid, {
-                status: 'error',
-                error: error.message
-            });
         });
 
-        res.json({
-            message: 'Download started',
-            uploadUuid,
-            fileId
+        // Check download status
+        router.get('/status/:uploadUuid', authMiddleware, (req, res) => {
+            const { uploadUuid } = req.params;
+            const status = activeDownloads.get(uploadUuid);
+
+            if (!status) {
+                return res.status(404).json({ error: 'Download not found' });
+            }
+
+            res.json(status);
         });
 
-    } catch (error) {
-        console.error('Drive upload error:', error);
-        res.status(500).json({ error: 'Failed to start download' });
-    }
-});
-
-// Check download status
-router.get('/status/:uploadUuid', authMiddleware, (req, res) => {
-    const { uploadUuid } = req.params;
-    const status = activeDownloads.get(uploadUuid);
-
-    if (!status) {
-        return res.status(404).json({ error: 'Download not found' });
-    }
-
-    res.json(status);
-});
-
-module.exports = router;
+        module.exports = router;
