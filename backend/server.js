@@ -5,6 +5,7 @@ const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const authRoutes = require('./routes/auth');
+const driveUploadRoutes = require('./routes/driveUpload');
 const uploadRoutes = require('./routes/upload');
 const chatsRoutes = require('./routes/chats');
 const mediaRoutes = require('./routes/media');
@@ -61,10 +62,7 @@ app.all('/api/upload/tus/*', authMiddleware, (req, res) => {
     tusServer.handle(req, res);
 });
 
-// Google Drive upload endpoint
-const driveUploadRoutes = require('./routes/driveUpload');
 app.use('/api/upload/drive', driveUploadRoutes);
-
 app.use('/api/upload', uploadRoutes);
 app.use('/api/chats', chatsRoutes);
 app.use('/api/media', mediaRoutes);

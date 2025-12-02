@@ -1,106 +1,110 @@
 const axios = require('axios');
-const fs = require('fs').promises;
+const fs = require('fs');
 const path = require('path');
-const { pipeline } = require('stream/promises');
-const { createWriteStream } = require('fs');
 
-/**
- * Extract Google Drive file ID from various link formats
- */
-function extractDriveFileId(url) {
-    // Format 1: https://drive.google.com/file/d/FILE_ID/view
-    let match = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-    if (match) return match[1];
+class DriveDownloader {
+    static getFileId(url) {
+        const patterns = [
+            /file\/d\/([a-zA-Z0-9_-]+)/,
+            /id=([a-zA-Z0-9_-]+)/,
+            /open\?id=([a-zA-Z0-9_-]+)/
+        ];
 
-    // Format 2: https://drive.google.com/open?id=FILE_ID
-    match = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-    if (match) return match[1];
-
-    return null;
-}
-
-/**
- * Download file from Google Drive
- * @param {string} driveUrl - Google Drive share link
- * @param {string} destPath - Destination file path
- * @param {function} onProgress - Progress callback (bytesDownloaded, totalBytes)
- */
-async function downloadFromDrive(driveUrl, destPath, onProgress) {
-    const fileId = extractDriveFileId(driveUrl);
-
-    if (!fileId) {
-        throw new Error('Invalid Google Drive link. Please use a valid share link.');
+        for (const pattern of patterns) {
+            const match = url.match(pattern);
+            if (match && match[1]) {
+                return match[1];
+            }
+        }
+        return null;
     }
 
-    // Google Drive direct download URL
-    const downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+    static async download(url, destPath, onProgress) {
+        const fileId = this.getFileId(url);
+        if (!fileId) {
+            throw new Error('Invalid Google Drive URL');
+        }
 
-    try {
-        // First request to get the file (might get confirmation page for large files)
-        const response = await axios({
-            method: 'GET',
-            url: downloadUrl,
-            responseType: 'stream',
-            maxRedirects: 5,
-            timeout: 30000, // 30 second timeout for initial connection
-        });
+        const downloadUrl = 'https://drive.google.com/uc?export=download';
 
-        // Check if we got a confirmation page (large files)
-        const contentType = response.headers['content-type'];
-        if (contentType && contentType.includes('text/html')) {
-            // Need to confirm download for large files
-            const confirmUrl = `https://drive.google.com/uc?export=download&confirm=t&id=${fileId}`;
-            const confirmedResponse = await axios({
+        try {
+            // First attempt - try direct download
+            let response = await axios({
                 method: 'GET',
-                url: confirmUrl,
+                url: downloadUrl,
+                params: { id: fileId },
                 responseType: 'stream',
-                maxRedirects: 5,
-                timeout: 30000,
+                validateStatus: status => status < 400 // Accept 3xx redirects
             });
 
-            return await downloadStream(confirmedResponse, destPath, onProgress);
-        }
+            // Check if we got a virus scan warning (HTML response instead of file)
+            // Note: axios stream response doesn't let us easily check content-type before consuming
+            // But usually the virus scan warning comes with a cookie or a confirmation link
 
-        return await downloadStream(response, destPath, onProgress);
+            // For large files, Google Drive returns a page asking to confirm
+            // We need to extract the confirmation token
 
-    } catch (error) {
-        if (error.code === 'ECONNABORTED') {
-            throw new Error('Download timeout. Please try again or use a different upload method.');
+            // A better approach for large files without API key is tricky.
+            // Let's try to handle the standard "confirm" parameter if we can find it.
+
+            // If the response is HTML (likely the warning page), we need to get the confirm token
+            if (response.headers['content-type'] && response.headers['content-type'].includes('text/html')) {
+                // We need to read the stream to find the token, but that consumes it.
+                // Let's try a different approach: HEAD request first? No, Drive doesn't support HEAD well for this.
+
+                // Let's try to get the confirmation token from the initial request if possible.
+                // Actually, the most reliable way without API key for large files is to check for the cookie/confirm param.
+
+                // Let's try to fetch the page as text first to find the token
+                const pageResponse = await axios({
+                    method: 'GET',
+                    url: downloadUrl,
+                    params: { id: fileId },
+                    responseType: 'text'
+                });
+
+                if (pageResponse.data.includes('download_warning')) {
+                    const match = pageResponse.data.match(/confirm=([a-zA-Z0-9_-]+)/);
+                    if (match && match[1]) {
+                        const confirmToken = match[1];
+                        // Retry with confirm token
+                        response = await axios({
+                            method: 'GET',
+                            url: downloadUrl,
+                            params: {
+                                id: fileId,
+                                confirm: confirmToken
+                            },
+                            responseType: 'stream'
+                        });
+                    }
+                }
+            }
+
+            // Pipe to file
+            const writer = fs.createWriteStream(destPath);
+            const totalLength = response.headers['content-length'];
+
+            let downloaded = 0;
+            response.data.on('data', (chunk) => {
+                downloaded += chunk.length;
+                if (onProgress && totalLength) {
+                    onProgress(downloaded, parseInt(totalLength));
+                }
+            });
+
+            response.data.pipe(writer);
+
+            return new Promise((resolve, reject) => {
+                writer.on('finish', resolve);
+                writer.on('error', reject);
+                response.data.on('error', reject);
+            });
+
+        } catch (error) {
+            throw new Error(`Download failed: ${error.message}`);
         }
-        throw new Error(`Failed to download from Google Drive: ${error.message}`);
     }
 }
 
-/**
- * Download from response stream
- */
-async function downloadStream(response, destPath, onProgress) {
-    const totalBytes = parseInt(response.headers['content-length'] || '0', 10);
-    let downloadedBytes = 0;
-
-    // Ensure destination directory exists
-    await fs.mkdir(path.dirname(destPath), { recursive: true });
-
-    const writer = createWriteStream(destPath);
-
-    // Track progress
-    response.data.on('data', (chunk) => {
-        downloadedBytes += chunk.length;
-        if (onProgress && totalBytes > 0) {
-            onProgress(downloadedBytes, totalBytes);
-        }
-    });
-
-    // Download file
-    await pipeline(response.data, writer);
-
-    return {
-        path: destPath,
-        size: downloadedBytes
-    };
-}
-
-module.exports = {
-    extractDriveFileId,
-    downloadFromDrive
-};
+module.exports = DriveDownloader;

@@ -3,16 +3,63 @@ import api from '../utils/api';
 import { FaTimes, FaUpload, FaCheckCircle, FaExclamationCircle, FaQuestionCircle } from 'react-icons/fa';
 
 const UploadModal = ({ onClose, onSuccess }) => {
-    const [uploadMethod, setUploadMethod] = useState('direct'); // 'direct' or 'drive'
     const [file, setFile] = useState(null);
-    const [driveLink, setDriveLink] = useState('');
     const [uploading, setUploading] = useState(false);
     const [progress, setProgress] = useState(0);
     const [jobId, setJobId] = useState(null);
     const [status, setStatus] = useState('idle'); // idle, uploading, processing, success, error
     const [error, setError] = useState('');
     const [showGuide, setShowGuide] = useState(false);
+    const [uploadMethod, setUploadMethod] = useState('direct'); // 'direct' or 'drive'
+    const [driveLink, setDriveLink] = useState('');
     const fileInputRef = useRef(null);
+
+    const handleDriveUpload = async () => {
+        if (!driveLink) return;
+
+        setUploading(true);
+        setStatus('uploading');
+        setError('');
+        setProgress(0);
+
+        try {
+            const response = await api.post('/upload/drive', { url: driveLink });
+            const { uploadUuid } = response.data;
+
+            // Poll for download status
+            const interval = setInterval(async () => {
+                try {
+                    const statusRes = await api.get(`/upload/drive/status/${uploadUuid}`);
+
+                    if (statusRes.data.status === 'downloading') {
+                        setProgress(statusRes.data.progress);
+                    } else if (statusRes.data.status === 'completed') {
+                        clearInterval(interval);
+                        setStatus('processing');
+                        setProgress(0);
+
+                        // Start polling for parse job
+                        pollJobStatus(statusRes.data.chatId);
+                    } else if (statusRes.data.status === 'error') {
+                        clearInterval(interval);
+                        throw new Error(statusRes.data.error);
+                    }
+                } catch (err) {
+                    clearInterval(interval);
+                    console.error('Drive status check failed:', err);
+                    setError(err.message || 'Failed to check download status');
+                    setStatus('error');
+                    setUploading(false);
+                }
+            }, 2000);
+
+        } catch (err) {
+            console.error('Drive upload failed:', err);
+            setError(err.response?.data?.error || 'Failed to start Drive download');
+            setStatus('error');
+            setUploading(false);
+        }
+    };
 
     const handleFileSelect = (e) => {
         const selectedFile = e.target.files?.[0];
@@ -64,7 +111,7 @@ const UploadModal = ({ onClose, onSuccess }) => {
             headers: {
                 'Authorization': `Bearer ${token}`
             },
-            chunkSize: 100 * 1024 * 1024, // 100MB chunks (reduced requests)
+            chunkSize: 100 * 1024 * 1024, // 100MB chunks
             onError: (error) => {
                 console.error('Upload failed:', error);
                 setError('Upload failed: ' + error.message);
@@ -99,40 +146,6 @@ const UploadModal = ({ onClose, onSuccess }) => {
 
         // Start the upload
         upload.start();
-    };
-
-    const handleDriveUpload = async () => {
-        if (!driveLink.trim()) {
-            setError('Please enter a Google Drive link');
-            return;
-        }
-
-        if (!driveLink.includes('drive.google.com')) {
-            setError('Please enter a valid Google Drive link');
-            return;
-        }
-
-        setUploading(true);
-        setStatus('uploading');
-        setError('');
-        setProgress(0);
-
-        try {
-            const response = await api.post('/upload/drive', {
-                driveUrl: driveLink,
-                chatName: file?.name?.replace('.zip', '') || 'WhatsApp Chat'
-            });
-
-            setJobId(response.data.chatId);
-            setStatus('processing');
-            pollJobStatus(response.data.chatId);
-
-        } catch (err) {
-            setError(err.response?.data?.error || 'Failed to download from Google Drive');
-            setStatus('error');
-        } finally {
-            setUploading(false);
-        }
     };
 
     const pollJobStatus = async (id) => {
@@ -207,37 +220,76 @@ const UploadModal = ({ onClose, onSuccess }) => {
                     </div>
                 ) : (
                     <>
-                        <div
-                            className="border-2 border-dashed border-wa-border dark:border-wa-border-dark rounded-lg p-8 text-center cursor-pointer hover:border-wa-green dark:hover:border-wa-green transition-colors mb-4"
-                            onClick={() => fileInputRef.current?.click()}
-                            onDrop={handleDrop}
-                            onDragOver={handleDragOver}
-                        >
-                            <FaUpload className="text-4xl text-wa-icon dark:text-wa-icon-dark mx-auto mb-4" />
-                            <p className="text-wa-text dark:text-wa-text-dark mb-2">
-                                {file ? (
-                                    <>
-                                        <span className="font-medium">{file.name}</span>
-                                        <br />
-                                        <span className="text-sm text-wa-text-secondary">
-                                            {(file.size / 1024 / 1024).toFixed(2)} MB
-                                        </span>
-                                    </>
-                                ) : (
-                                    'Click to select or drag ZIP file here'
-                                )}
-                            </p>
-                            <p className="text-xs text-wa-text-secondary dark:text-wa-text-secondary-dark">
-                                Maximum size: 10GB
-                            </p>
-                            <input
-                                ref={fileInputRef}
-                                type="file"
-                                accept=".zip"
-                                onChange={handleFileSelect}
-                                className="hidden"
-                            />
+                        <div className="flex mb-6 border-b border-wa-border dark:border-wa-border-dark">
+                            <button
+                                className={`flex-1 pb-2 text-sm font-medium transition-colors ${uploadMethod === 'direct'
+                                    ? 'text-wa-green border-b-2 border-wa-green'
+                                    : 'text-wa-text-secondary hover:text-wa-text dark:text-wa-text-secondary-dark dark:hover:text-wa-text-dark'
+                                    }`}
+                                onClick={() => setUploadMethod('direct')}
+                            >
+                                Direct Upload
+                            </button>
+                            <button
+                                className={`flex-1 pb-2 text-sm font-medium transition-colors ${uploadMethod === 'drive'
+                                    ? 'text-wa-green border-b-2 border-wa-green'
+                                    : 'text-wa-text-secondary hover:text-wa-text dark:text-wa-text-secondary-dark dark:hover:text-wa-text-dark'
+                                    }`}
+                                onClick={() => setUploadMethod('drive')}
+                            >
+                                Google Drive Link
+                            </button>
                         </div>
+
+                        {uploadMethod === 'direct' ? (
+                            <div
+                                className="border-2 border-dashed border-wa-border dark:border-wa-border-dark rounded-lg p-8 text-center cursor-pointer hover:border-wa-green dark:hover:border-wa-green transition-colors mb-4"
+                                onClick={() => fileInputRef.current?.click()}
+                                onDrop={handleDrop}
+                                onDragOver={handleDragOver}
+                            >
+                                <FaUpload className="text-4xl text-wa-icon dark:text-wa-icon-dark mx-auto mb-4" />
+                                <p className="text-wa-text dark:text-wa-text-dark mb-2">
+                                    {file ? (
+                                        <>
+                                            <span className="font-medium">{file.name}</span>
+                                            <br />
+                                            <span className="text-sm text-wa-text-secondary">
+                                                {(file.size / 1024 / 1024).toFixed(2)} MB
+                                            </span>
+                                        </>
+                                    ) : (
+                                        'Click to select or drag ZIP file here'
+                                    )}
+                                </p>
+                                <p className="text-xs text-wa-text-secondary dark:text-wa-text-secondary-dark">
+                                    Maximum size: 10GB
+                                </p>
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept=".zip"
+                                    onChange={handleFileSelect}
+                                    className="hidden"
+                                />
+                            </div>
+                        ) : (
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium text-wa-text dark:text-wa-text-dark mb-2">
+                                    Google Drive Link
+                                </label>
+                                <input
+                                    type="text"
+                                    value={driveLink}
+                                    onChange={(e) => setDriveLink(e.target.value)}
+                                    placeholder="https://drive.google.com/file/d/..."
+                                    className="w-full px-4 py-2 rounded-lg border border-wa-border dark:border-wa-border-dark bg-white dark:bg-wa-bg-dark text-wa-text dark:text-wa-text-dark focus:outline-none focus:border-wa-green transition-colors"
+                                />
+                                <p className="text-xs text-wa-text-secondary dark:text-wa-text-secondary-dark mt-2">
+                                    Make sure the link is accessible (Anyone with the link)
+                                </p>
+                            </div>
+                        )}
 
                         {error && (
                             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg mb-4 text-sm">
@@ -264,8 +316,8 @@ const UploadModal = ({ onClose, onSuccess }) => {
                         )}
 
                         <button
-                            onClick={handleUpload}
-                            disabled={!file || uploading || status === 'processing'}
+                            onClick={uploadMethod === 'direct' ? handleUpload : handleDriveUpload}
+                            disabled={(uploadMethod === 'direct' && !file) || (uploadMethod === 'drive' && !driveLink) || uploading || status === 'processing'}
                             className="w-full px-6 py-3 bg-wa-green hover:bg-wa-green-dark text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center gap-2"
                         >
                             {uploading ? (
