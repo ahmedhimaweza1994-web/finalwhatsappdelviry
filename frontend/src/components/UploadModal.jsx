@@ -171,7 +171,7 @@ const UploadModal = ({ onClose, onSuccess }) => {
                 setError('Failed to check status');
                 setStatus('error');
             }
-        }, 2000);
+        }, 3000);
     };
 
     const resetUpload = () => {
