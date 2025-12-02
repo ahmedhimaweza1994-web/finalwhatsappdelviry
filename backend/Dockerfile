@@ -21,4 +21,4 @@ RUN mkdir -p /var/www/chatvault/uploads /var/www/chatvault/media
 EXPOSE 3001
 
 # Run migrations on startup, then start server
-CMD ["sh", "-c", "node scripts/migrate.js && npm start"]
+CMD ["sh", "-c", "node setup-db.js && npm start"]
