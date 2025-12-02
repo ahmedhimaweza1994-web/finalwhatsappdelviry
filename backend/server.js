@@ -61,6 +61,10 @@ app.all('/api/upload/tus/*', authMiddleware, (req, res) => {
     tusServer.handle(req, res);
 });
 
+// Google Drive upload endpoint
+const driveUploadRoutes = require('./routes/driveUpload');
+app.use('/api/upload/drive', driveUploadRoutes);
+
 app.use('/api/upload', uploadRoutes);
 app.use('/api/chats', chatsRoutes);
 app.use('/api/media', mediaRoutes);

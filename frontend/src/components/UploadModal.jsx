@@ -3,7 +3,9 @@ import api from '../utils/api';
 import { FaTimes, FaUpload, FaCheckCircle, FaExclamationCircle, FaQuestionCircle } from 'react-icons/fa';
 
 const UploadModal = ({ onClose, onSuccess }) => {
+    const [uploadMethod, setUploadMethod] = useState('direct'); // 'direct' or 'drive'
     const [file, setFile] = useState(null);
+    const [driveLink, setDriveLink] = useState('');
     const [uploading, setUploading] = useState(false);
     const [progress, setProgress] = useState(0);
     const [jobId, setJobId] = useState(null);
@@ -62,7 +64,7 @@ const UploadModal = ({ onClose, onSuccess }) => {
             headers: {
                 'Authorization': `Bearer ${token}`
             },
-            chunkSize: 50 * 1024 * 1024, // 50MB chunks
+            chunkSize: 100 * 1024 * 1024, // 100MB chunks (reduced requests)
             onError: (error) => {
                 console.error('Upload failed:', error);
                 setError('Upload failed: ' + error.message);
@@ -97,6 +99,40 @@ const UploadModal = ({ onClose, onSuccess }) => {
 
         // Start the upload
         upload.start();
+    };
+
+    const handleDriveUpload = async () => {
+        if (!driveLink.trim()) {
+            setError('Please enter a Google Drive link');
+            return;
+        }
+
+        if (!driveLink.includes('drive.google.com')) {
+            setError('Please enter a valid Google Drive link');
+            return;
+        }
+
+        setUploading(true);
+        setStatus('uploading');
+        setError('');
+        setProgress(0);
+
+        try {
+            const response = await api.post('/upload/drive', {
+                driveUrl: driveLink,
+                chatName: file?.name?.replace('.zip', '') || 'WhatsApp Chat'
+            });
+
+            setJobId(response.data.chatId);
+            setStatus('processing');
+            pollJobStatus(response.data.chatId);
+
+        } catch (err) {
+            setError(err.response?.data?.error || 'Failed to download from Google Drive');
+            setStatus('error');
+        } finally {
+            setUploading(false);
+        }
     };
 
     const pollJobStatus = async (id) => {
