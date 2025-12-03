@@ -174,8 +174,10 @@ parseQueue.process(async (job) => {
         // Step 7: Update chat status (100%)
         await job.progress(100);
         await Chat.updateParseStatus(chatId, 'completed');
-        // DO NOT update chat_name - it should remain as set by user during upload
-        await Chat.updateStats(chatId, savedMessages.length, await zipParser.getDirectorySize(extractPath));
+        await db.query(
+            'UPDATE chats SET chat_name = $1 WHERE id = $2',
+            [chatName, chatId]
+        );
 
         // Clean up temporary extraction directory
         await zipParser.cleanup(extractPath);

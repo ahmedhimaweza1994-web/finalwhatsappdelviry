@@ -45,11 +45,11 @@ class Message {
        LEFT JOIN media_files mf ON mf.message_id = m.id
        WHERE m.chat_id = $1
        GROUP BY m.id
-       ORDER BY m.order_index ASC
+       ORDER BY m.timestamp DESC, m.order_index DESC
        LIMIT $2 OFFSET $3`,
             [chatId, limit, offset]
         );
-        return result.rows;
+        return result.rows.reverse(); // Reverse to show oldest first in the returned batch
     }
 
     static async countByChat(chatId) {
