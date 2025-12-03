@@ -18,7 +18,7 @@ class Chat {
               (SELECT timestamp FROM messages WHERE chat_id = c.id ORDER BY order_index DESC LIMIT 1) as last_message_time
        FROM chats c 
        WHERE user_id = $1 
-       ORDER BY created_at DESC 
+       ORDER BY is_pinned DESC NULLS LAST, pinned_at DESC NULLS LAST, created_at DESC 
        LIMIT $2 OFFSET $3`,
             [userId, limit, offset]
         );
@@ -61,6 +61,21 @@ class Chat {
             [userId]
         );
         return parseInt(result.rows[0].count);
+    }
+
+    static async togglePin(chatId, userId) {
+        const result = await db.query(
+            `UPDATE chats 
+             SET is_pinned = NOT COALESCE(is_pinned, FALSE),
+                 pinned_at = CASE 
+                   WHEN NOT COALESCE(is_pinned, FALSE) THEN CURRENT_TIMESTAMP 
+                   ELSE NULL 
+                 END
+             WHERE id = $1 AND user_id = $2
+             RETURNING *`,
+            [chatId, userId]
+        );
+        return result.rows[0];
     }
 }
 

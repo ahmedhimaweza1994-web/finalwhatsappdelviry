@@ -10,6 +10,7 @@ const uploadRoutes = require('./routes/upload');
 const chatsRoutes = require('./routes/chats');
 const mediaRoutes = require('./routes/media');
 const tusServer = require('./config/tusServer');
+const pinsRoutes = require('./routes/pins');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -65,6 +66,7 @@ app.all('/api/upload/tus/*', authMiddleware, (req, res) => {
 app.use('/api/upload/drive', driveUploadRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/chats', chatsRoutes);
+app.use('/api', pinsRoutes); // Pin and search routes
 app.use('/api/media', mediaRoutes);
 
 // 404 handler

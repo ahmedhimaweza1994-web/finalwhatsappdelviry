@@ -4,29 +4,30 @@ class Message {
     static async bulkCreate(messages) {
         if (messages.length === 0) return [];
 
-        const values = messages.map((msg, idx) => {
-            const offset = idx * 8;
-            return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8})`;
-        }).join(',');
+        const placeholders = [];
+        const values = [];
+        let paramIndex = 1;
 
-        const params = messages.flatMap(msg => [
-            msg.chatId,
-            msg.senderName,
-            msg.senderIsMe,
-            msg.timestamp,
-            msg.body,
-            msg.messageType,
-            msg.orderIndex,
-            JSON.stringify(msg.metadata || {})
-        ]);
+        messages.forEach((msg) => {
+            const msgValues = [
+                msg.chatId,
+                msg.senderName,
+                msg.senderIsMe,
+                msg.timestamp,
+                msg.body,
+                msg.messageType,
+                msg.orderIndex,
+                JSON.stringify(msg.metadata || {})
+            ];
+            placeholders.push(`($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7})`);
+            values.push(...msgValues);
+            paramIndex += 8;
+        });
 
-        const query = `
-      INSERT INTO messages (chat_id, sender_name, sender_is_me, timestamp, body, message_type, order_index, metadata)
-      VALUES ${values}
-      RETURNING *
-    `;
-
-        const result = await db.query(query, params);
+        const query = `INSERT INTO messages (chat_id, sender_name, sender_is_me, timestamp, body, message_type, order_index, metadata) 
+                      VALUES ${placeholders.join(', ')} 
+                      RETURNING *`;
+        const result = await db.query(query, values);
         return result.rows;
     }
 
@@ -64,13 +65,64 @@ class Message {
         await db.query('DELETE FROM messages WHERE chat_id = $1', [chatId]);
     }
 
-    static async search(chatId, query, limit = 50) {
+    // Search messages in a chat (supports Arabic and English)
+    static async searchInChat(chatId, searchQuery, limit = 50) {
         const result = await db.query(
-            `SELECT * FROM messages 
-       WHERE chat_id = $1 AND to_tsvector('english', body) @@ plainto_tsquery('english', $2)
-       ORDER BY order_index ASC
+            `SELECT m.*, 
+              json_agg(json_build_object(
+                'id', mf.id,
+                'original_name', mf.original_name,
+                'storage_path', mf.storage_path,
+                'thumb_path', mf.thumb_path,
+                'mime_type', mf.mime_type,
+                'size_bytes', mf.size_bytes
+              )) FILTER (WHERE mf.id IS NOT NULL) as media
+       FROM messages m
+       LEFT JOIN media_files mf ON mf.message_id = m.id
+       WHERE m.chat_id = $1 AND (m.body ILIKE $2 OR m.sender_name ILIKE $2)
+       GROUP BY m.id
+       ORDER BY m.timestamp DESC
        LIMIT $3`,
-            [chatId, query, limit]
+            [chatId, `%${searchQuery}%`, limit]
+        );
+        return result.rows;
+    }
+
+    // Toggle pin status for a message
+    static async togglePin(messageId, chatId) {
+        const result = await db.query(
+            `UPDATE messages 
+             SET is_pinned = NOT COALESCE(is_pinned, FALSE),
+                 pinned_at = CASE 
+                   WHEN NOT COALESCE(is_pinned, FALSE) THEN CURRENT_TIMESTAMP 
+                   ELSE NULL 
+                 END
+             WHERE id = $1 AND chat_id = $2
+             RETURNING *`,
+            [messageId, chatId]
+        );
+        return result.rows[0];
+    }
+
+    // Get all pinned messages for a chat
+    static async getPinnedMessages(chatId) {
+        const result = await db.query(
+            `SELECT m.*, 
+              json_agg(json_build_object(
+                'id', mf.id,
+                'original_name', mf.original_name,
+                'storage_path', mf.storage_path,
+                'thumb_path', mf.thumb_path,
+                'mime_type', mf.mime_type,
+                'size_bytes', mf.size_bytes
+              )) FILTER (WHERE mf.id IS NOT NULL) as media
+       FROM messages m
+       LEFT JOIN media_files mf ON mf.message_id = m.id
+       WHERE m.chat_id = $1 AND m.is_pinned = TRUE
+       GROUP BY m.id
+       ORDER BY m.pinned_at DESC
+       LIMIT 10`,
+            [chatId]
         );
         return result.rows;
     }

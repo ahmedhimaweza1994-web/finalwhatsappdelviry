@@ -43,12 +43,20 @@ async function setupDatabase() {
     await client.connect();
     console.log('Connected to chatvault database');
 
-    // Read and execute migration file
-    const migrationPath = path.join(__dirname, 'migrations', '001_initial_schema.sql');
-    const migrationSQL = fs.readFileSync(migrationPath, 'utf8');
+    // Read and execute all migration files
+    const migrationsDir = path.join(__dirname, 'migrations');
+    const migrationFiles = fs.readdirSync(migrationsDir)
+      .filter(f => f.endsWith('.sql'))
+      .sort(); // Ensures migrations run in order
 
-    await client.query(migrationSQL);
-    console.log('✓ Migration completed successfully');
+    for (const file of migrationFiles) {
+      const migrationPath = path.join(migrationsDir, file);
+      const migrationSQL = fs.readFileSync(migrationPath, 'utf8');
+      await client.query(migrationSQL);
+      console.log(`✓ Migration ${file} completed`);
+    }
+
+    console.log('✓ All migrations completed successfully');
 
     await client.end();
     console.log('\n✓ Database setup complete!');
