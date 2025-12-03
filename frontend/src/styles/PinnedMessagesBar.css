@@ -1,0 +1,107 @@
+.pinned-messages-bar {
+    background: var(--pinned-bg, #fff3cd);
+    border-bottom: 1px solid var(--border-color);
+    max-height: 300px;
+    overflow: hidden;
+}
+
+[data-theme="dark"] .pinned-messages-bar {
+    background: rgba(255, 193, 7, 0.15);
+}
+
+.pinned-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 15px;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.2s;
+}
+
+.pinned-header:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="dark"] .pinned-header:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.pinned-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text-primary);
+}
+
+.pin-icon {
+    color: #dc3545;
+    font-size: 14px;
+}
+
+.pinned-messages-list {
+    max-height: 250px;
+    overflow-y: auto;
+}
+
+.pinned-message-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 15px;
+    border-top: 1px solid var(--border-color);
+    transition: background 0.2s;
+}
+
+.pinned-message-item:hover {
+    background: rgba(0, 0, 0, 0.03);
+}
+
+[data-theme="dark"] .pinned-message-item:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.pinned-message-content {
+    flex: 1;
+    cursor: pointer;
+    min-width: 0;
+}
+
+.pinned-sender {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--primary-color);
+    margin-bottom: 2px;
+}
+
+.pinned-preview {
+    font-size: 13px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.unpin-button {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 8px;
+    display: flex;
+    align-items: center;
+    border-radius: 50%;
+    transition: all 0.2s;
+    margin-left: 8px;
+}
+
+.unpin-button:hover {
+    background: rgba(0, 0, 0, 0.1);
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .unpin-button:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
