@@ -65,6 +65,9 @@ params: { limit: 10000, offset: 0 } // Large limit to get all messages
 setMessages(response.data.messages || []);
 setMessageLimit(50); // Reset limit when switching chats
         } catch (err) {
+    console.error('Error fetching messages:', err);
+    setError('Failed to load messages');
+} finally {
     setLoading(false);
 }
     };
