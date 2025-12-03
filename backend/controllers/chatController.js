@@ -151,7 +151,7 @@ class ChatController {
                 return res.status(404).json({ error: 'Chat not found' });
             }
 
-            const results = await Message.search(chatId, query);
+            const results = await Message.searchInChat(chatId, query);
 
             res.json({
                 results,
