@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
-import { FaUpload, FaSearch, FaMoon, FaSun, FaSignOutAlt } from 'react-icons/fa';
+import { FaUpload, FaSearch, FaMoon, FaSun, FaSignOutAlt, FaThumbtack } from 'react-icons/fa';
 import { format, isToday, isYesterday } from 'date-fns';
 import useTheme from '../hooks/useTheme';
 
@@ -27,6 +27,16 @@ const ChatList = ({ selectedChat, onSelectChat, onOpenUpload }) => {
             console.error('Failed to load chats:', error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleTogglePin = async (chatId, e) => {
+        e.stopPropagation(); // Prevent chat selection
+        try {
+            await api.post(`/chats/${chatId}/pin`);
+            await loadChats(); // Reload to get updated pin status and order
+        } catch (error) {
+            console.error('Failed to toggle pin:', error);
         }
     };
 
@@ -138,7 +148,7 @@ const ChatList = ({ selectedChat, onSelectChat, onOpenUpload }) => {
                         <div
                             key={chat.id}
                             onClick={() => onSelectChat(chat)}
-                            className={`p-3 border-b border-wa-border dark:border-wa-border-dark cursor-pointer hover:bg-wa-panel dark:hover:bg-wa-bg-dark transition-colors ${selectedChat?.id === chat.id ? 'bg-wa-panel dark:bg-wa-bg-dark' : ''
+                            className={`p-3 border-b border-wa-border dark:border-wa-border-dark cursor-pointer hover:bg-wa-panel dark:hover:bg-wa-bg-dark transition-colors ${chat.is_pinned ? 'bg-yellow-50 dark:bg-yellow-900/10' : ''} ${selectedChat?.id === chat.id ? 'bg-wa-panel dark:bg-wa-bg-dark' : ''
                                 }`}
                         >
                             <div className="flex items-center gap-3">
@@ -147,9 +157,18 @@ const ChatList = ({ selectedChat, onSelectChat, onOpenUpload }) => {
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <div className="flex justify-between items-baseline gap-2">
-                                        <h3 className="font-medium truncate text-wa-text dark:text-wa-text-dark">
-                                            {chat.chat_name}
-                                        </h3>
+                                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                                            <h3 className="font-medium truncate text-wa-text dark:text-wa-text-dark">
+                                                {chat.chat_name}
+                                            </h3>
+                                            {chat.is_pinned && (
+                                                <FaThumbtack
+                                                    className="text-xs flex-shrink-0"
+                                                    style={{ color: '#dc3545' }}
+                                                    title="Pinned chat"
+                                                />
+                                            )}
+                                        </div>
                                         {chat.last_message_time && (
                                             <span className="text-xs text-wa-text-secondary dark:text-wa-text-secondary-dark flex-shrink-0">
                                                 {formatTime(chat.last_message_time)}
@@ -160,7 +179,18 @@ const ChatList = ({ selectedChat, onSelectChat, onOpenUpload }) => {
                                         <p className="text-sm text-wa-text-secondary dark:text-wa-text-secondary-dark truncate">
                                             {chat.last_message || `${chat.message_count || 0} messages`}
                                         </p>
-                                        {getStatusBadge(chat.parse_status)}
+                                        <div className="flex items-center gap-2">
+                                            {getStatusBadge(chat.parse_status)}
+                                            <button
+                                                onClick={(e) => handleTogglePin(chat.id, e)}
+                                                className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                                                title={chat.is_pinned ? 'Unpin chat' : 'Pin chat'}
+                                            >
+                                                <FaThumbtack
+                                                    className={`text-sm ${chat.is_pinned ? 'text-red-500' : 'text-gray-400'}`}
+                                                />
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
