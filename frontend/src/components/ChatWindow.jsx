@@ -58,7 +58,7 @@ const ChatWindow = ({ chat, onDelete }) => {
             setLoading(true);
             setError('');
             // Load ALL messages without pagination from the API
-            const response = await api.get(`/ chats / ${chat.id}/messages`, {
+            const response = await api.get(`/chats/${chat.id}/messages`, {
                 params: { limit: 10000, offset: 0 } // Large limit to get all messages
             });
             setMessages(response.data.messages || []);
