@@ -293,44 +293,40 @@ class ChatParser {
             if (isPM && hours !== 12) hours += 12;
             if (isAM && hours === 12) hours = 0;
 
-            // Determine date format based on value ranges
-            let day, month, year;
+            // Parse date parts: ALWAYS assume MM/DD/YY format (US format)
+            // This matches the user's file format exactly
+            const month = parseInt(dateParts[0]);
+            const day = parseInt(dateParts[1]);
+            const third = parseInt(dateParts[2]);
 
-            // If third part is 2 digits, it's YY format
-            if (dateParts[2] && dateParts[2].length === 2) {
-                year = 2000 + parseInt(dateParts[2]);
-            } else if (dateParts[2]) {
-                year = parseInt(dateParts[2]);
+            // Parse year
+            let year = third;
+            if (year < 100) {
+                // 2-digit year: 00-99 all map to 2000-2099
+                year = 2000 + year;
             }
 
-            // Common formats: DD/MM/YYYY or MM/DD/YYYY
-            // Heuristic: if first number > 12, it's DD/MM, otherwise check both
-            const first = parseInt(dateParts[0]);
-            const second = parseInt(dateParts[1]);
-
-            if (first > 12) {
-                // Must be DD/MM
-                day = first;
-                month = second;
-            } else if (second > 12) {
-                // Must be MM/DD
-                month = first;
-                day = second;
-            } else {
-                // Ambiguous - default to DD/MM (European format more common in WhatsApp)
-                day = first;
-                month = second;
+            // Validate month and day ranges
+            if (month < 1 || month > 12) {
+                console.error(`[Parser] Invalid month: ${month} in date ${dateStr}`);
+                return null;
+            }
+            if (day < 1 || day > 31) {
+                console.error(`[Parser] Invalid day: ${day} in date ${dateStr}`);
+                return null;
             }
 
             const date = new Date(year, month - 1, day, hours, minutes, seconds);
 
             // Validate date
             if (isNaN(date.getTime())) {
+                console.error(`[Parser] Invalid date created: ${dateStr} ${timeStr}`);
                 return null;
             }
 
             return date;
         } catch (error) {
+            console.error(`[Parser] Error parsing timestamp: ${dateStr} ${timeStr}`, error);
             return null;
         }
     }
