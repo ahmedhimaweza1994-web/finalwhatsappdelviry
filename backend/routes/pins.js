@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pinController = require('../controllers/pinController');
-const { authenticate } = require('../middleware/auth');
+const authenticate = require('../middleware/auth');
 
 // All routes require authentication
 router.use(authenticate);
