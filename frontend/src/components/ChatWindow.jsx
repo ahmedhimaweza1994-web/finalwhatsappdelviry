@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import api from '../utils/api';
 import MessageBubble from './MessageBubble';
 import SearchBar from './SearchBar';
@@ -118,44 +118,50 @@ const ChatWindow = ({ chat, onDelete }) => {
         setMessageLimit(50);
     };
 
-    const scrollToSearchResult = (messageId) => {
-        // Ensure the message is in the displayed range
-        const messageIndex = messages.findIndex(m => m.id === messageId);
-        if (messageIndex !== -1 && messageIndex >= messageLimit) {
-            // Need to load more messages to show this one
-            setMessageLimit(messageIndex + 50);
+    const scrollToSearchResult = useCallback((messageId) => {
+        // Just scroll to the message - we already loaded all messages on search
+        const messageEl = document.getElementById(`message-${messageId}`);
+        if (messageEl) {
+            messageEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            messageEl.classList.add('search-highlight-active');
+            setTimeout(() => {
+                messageEl.classList.remove('search-highlight-active');
+            }, 2000);
+        } else {
+            // Message not in DOM yet, might need to scroll or it's not loaded
+            console.warn(`Message ${messageId} not found in DOM`);
         }
+    }, []);
 
-        // Wait a bit for render, then scroll
-        setTimeout(() => {
-            const messageEl = document.getElementById(`message-${messageId}`);
-            if (messageEl) {
-                messageEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                messageEl.classList.add('search-highlight-active');
-                setTimeout(() => {
-                    messageEl.classList.remove('search-highlight-active');
-                }, 2000);
-            }
-        }, 100);
-    };
+    const goToNextResult = useCallback(() => {
+        setSearchResults(prev => {
+            if (!prev || prev.messageIds.length === 0) return prev;
 
-    const goToNextResult = () => {
-        if (!searchResults || searchResults.messageIds.length === 0) return;
+            const nextIndex = (prev.currentIndex + 1) % prev.messageIds.length;
+            const nextMessageId = prev.messageIds[nextIndex];
 
-        const nextIndex = (searchResults.currentIndex + 1) % searchResults.messageIds.length;
-        setSearchResults({ ...searchResults, currentIndex: nextIndex });
-        scrollToSearchResult(searchResults.messageIds[nextIndex]);
-    };
+            // Scroll after state update
+            setTimeout(() => scrollToSearchResult(nextMessageId), 0);
 
-    const goToPrevResult = () => {
-        if (!searchResults || searchResults.messageIds.length === 0) return;
+            return { ...prev, currentIndex: nextIndex };
+        });
+    }, [scrollToSearchResult]);
 
-        const prevIndex = searchResults.currentIndex === 0
-            ? searchResults.messageIds.length - 1
-            : searchResults.currentIndex - 1;
-        setSearchResults({ ...searchResults, currentIndex: prevIndex });
-        scrollToSearchResult(searchResults.messageIds[prevIndex]);
-    };
+    const goToPrevResult = useCallback(() => {
+        setSearchResults(prev => {
+            if (!prev || prev.messageIds.length === 0) return prev;
+
+            const prevIndex = prev.currentIndex === 0
+                ? prev.messageIds.length - 1
+                : prev.currentIndex - 1;
+            const prevMessageId = prev.messageIds[prevIndex];
+
+            // Scroll after state update
+            setTimeout(() => scrollToSearchResult(prevMessageId), 0);
+
+            return { ...prev, currentIndex: prevIndex };
+        });
+    }, [scrollToSearchResult]);
 
     const handleTogglePin = async (messageId) => {
         try {
