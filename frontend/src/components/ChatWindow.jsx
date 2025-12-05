@@ -29,19 +29,26 @@ const ChatWindow = ({ chat, onDelete }) => {
     }, [chat?.id]);
 
     useEffect(() => {
-        // Display only the latest messages based on limit
+        // When search is active, show ALL messages so navigation works
+        // Otherwise, display only the latest messages based on limit
         if (messages.length > 0) {
-            const latest = messages.slice(-messageLimit);
-            setDisplayedMessages(latest);
+            if (searchResults && searchResults.messageIds.length > 0) {
+                // Search active - show all messages
+                setDisplayedMessages(messages);
+            } else {
+                // Normal mode - show only latest based on limit
+                const latest = messages.slice(-messageLimit);
+                setDisplayedMessages(latest);
 
-            // Only scroll to bottom on initial load or when switching chats, not when loading more
-            if (messageLimit === 50) {
-                setTimeout(() => scrollToBottom(), 100);
+                // Only scroll to bottom on initial load or when switching chats
+                if (messageLimit === 50) {
+                    setTimeout(() => scrollToBottom(), 100);
+                }
             }
         } else {
             setDisplayedMessages([]);
         }
-    }, [messages, messageLimit]);
+    }, [messages, messageLimit, searchResults]);
 
     // Remove auto-scroll on every message change - only scroll on initial load
 
@@ -111,12 +118,12 @@ const ChatWindow = ({ chat, onDelete }) => {
         }
     }, [chat.id, scrollToSearchResult]);
 
-    const handleClearSearch = () => {
+    const handleClearSearch = useCallback(() => {
         setSearchQuery('');
         setSearchResults(null);
         // Reset to normal limit when clearing search
         setMessageLimit(50);
-    };
+    }, []);
 
     const scrollToSearchResult = useCallback((messageId) => {
         // Just scroll to the message - we already loaded all messages on search
