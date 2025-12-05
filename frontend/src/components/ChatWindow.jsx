@@ -78,16 +78,13 @@ const ChatWindow = ({ chat, onDelete }) => {
     const fetchMessagesAround = useCallback(async (messageId) => {
         try {
             const response = await api.get(`/chats/${chat.id}/messages/around/${messageId}`);
-            const newMessages = response.data.messages || [];
-            setMessages(newMessages);
-            // Update limit to ensure all loaded messages are displayed
-            setMessageLimit(newMessages.length);
+            setMessages(response.data.messages || []);
             return response.data.targetIndex;
         } catch (err) {
             console.error('Error fetching messages around:', err);
             return -1;
         }
-    }, [chat.id]);
+    }, [chat?.id]);
 
     const fetchPinnedMessages = async () => {
         try {
@@ -119,7 +116,7 @@ const ChatWindow = ({ chat, onDelete }) => {
         } catch (err) {
             console.error('Error searching messages:', err);
         }
-    }, [chat.id]);
+    }, [chat?.id]);
 
     const handleResultClick = useCallback(async (messageId) => {
         // Close modal
@@ -259,7 +256,7 @@ const ChatWindow = ({ chat, onDelete }) => {
             <SearchBar
                 onSearch={handleSearch}
                 onClear={handleClearSearch}
-                placeholder="Search history (Popup)..."
+                placeholder="Search messages..."
             />
 
             {/* Pinned Messages */}
