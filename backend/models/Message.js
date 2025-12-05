@@ -98,6 +98,44 @@ class Message {
         };
     }
 
+    // Get messages around a specific message ID (for search navigation)
+    // Returns ~100 messages (50 before + target + 49 after) for context
+    static async getMessagesAround(chatId, messageId, contextSize = 50) {
+        const result = await db.query(
+            `WITH target AS (
+                SELECT timestamp, id FROM messages WHERE id = $2 AND chat_id = $1
+            ),
+            before_messages AS (
+                SELECT m.* FROM messages m, target t
+                WHERE m.chat_id = $1 AND m.timestamp < t.timestamp
+                ORDER BY m.timestamp DESC
+                LIMIT $3
+            ),
+            after_messages AS (
+                SELECT m.* FROM messages m, target t
+                WHERE m.chat_id = $1 AND m.timestamp >= t.timestamp
+                ORDER BY m.timestamp ASC
+                LIMIT $3
+            )
+            SELECT * FROM (
+                SELECT * FROM before_messages
+                UNION ALL
+                SELECT * FROM after_messages
+            ) combined
+            ORDER BY timestamp ASC`,
+            [chatId, messageId, contextSize]
+        );
+
+        // Find the index of the target message
+        const targetIndex = result.rows.findIndex(row => row.id === messageId);
+
+        return {
+            messages: result.rows,
+            targetIndex: targetIndex,
+            totalMessages: result.rows.length
+        };
+    }
+
     // Toggle pin status for a message
     static async togglePin(messageId, chatId) {
         const result = await db.query(

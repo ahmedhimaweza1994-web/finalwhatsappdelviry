@@ -29,21 +29,14 @@ const ChatWindow = ({ chat, onDelete }) => {
     }, [chat?.id]);
 
     useEffect(() => {
-        // When search is active, show ALL messages so navigation works
-        // Otherwise, display only the latest messages based on limit
+        // Display messages based on limit
         if (messages.length > 0) {
-            if (searchResults && searchResults.messageIds.length > 0) {
-                // Search active - show all messages
-                setDisplayedMessages(messages);
-            } else {
-                // Normal mode - show only latest based on limit
-                const latest = messages.slice(-messageLimit);
-                setDisplayedMessages(latest);
+            const latest = messages.slice(-messageLimit);
+            setDisplayedMessages(latest);
 
-                // Only scroll to bottom on initial load or when switching chats
-                if (messageLimit === 50) {
-                    setTimeout(() => scrollToBottom(), 100);
-                }
+            // Only scroll to bottom on initial load or when switching chats
+            if (messageLimit === 50 && !searchResults) {
+                setTimeout(() => scrollToBottom(), 100);
             }
         } else {
             setDisplayedMessages([]);
@@ -65,17 +58,28 @@ const ChatWindow = ({ chat, onDelete }) => {
         try {
             setLoading(true);
             setError('');
-            // Load ALL messages without pagination from the API
+            // Load initial messages (last 50)
             const response = await api.get(`/chats/${chat.id}/messages`, {
-                params: { limit: 10000, offset: 0 } // Large limit to get all messages
+                params: { limit: 50, offset: 0 }
             });
             setMessages(response.data.messages || []);
-            setMessageLimit(50); // Reset limit when switching chats
+            setMessageLimit(50);
         } catch (err) {
             console.error('Error fetching messages:', err);
             setError('Failed to load messages');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchMessagesAround = async (messageId) => {
+        try {
+            const response = await api.get(`/chats/${chat.id}/messages/around/${messageId}`);
+            setMessages(response.data.messages || []);
+            return response.data.targetIndex;
+        } catch (err) {
+            console.error('Error fetching messages around:', err);
+            return -1;
         }
     };
 
@@ -107,11 +111,13 @@ const ChatWindow = ({ chat, onDelete }) => {
                 currentIndex: 0
             });
 
-            // Scroll to first result
+            // Load messages around first result and scroll
             if (response.data.matchingMessageIds?.length > 0) {
-                setTimeout(() => {
-                    scrollToSearchResult(response.data.matchingMessageIds[0]);
-                }, 100);
+                fetchMessagesAround(response.data.matchingMessageIds[0]).then(() => {
+                    setTimeout(() => {
+                        scrollToSearchResult(response.data.matchingMessageIds[0]);
+                    }, 100);
+                });
             }
         } catch (err) {
             console.error('Error searching messages:', err);
@@ -147,12 +153,14 @@ const ChatWindow = ({ chat, onDelete }) => {
             const nextIndex = (prev.currentIndex + 1) % prev.messageIds.length;
             const nextMessageId = prev.messageIds[nextIndex];
 
-            // Scroll after state update
-            setTimeout(() => scrollToSearchResult(nextMessageId), 0);
+            // Load messages around this result and scroll
+            fetchMessagesAround(nextMessageId).then(() => {
+                setTimeout(() => scrollToSearchResult(nextMessageId), 100);
+            });
 
             return { ...prev, currentIndex: nextIndex };
         });
-    }, [scrollToSearchResult]);
+    }, [chat.id, scrollToSearchResult]);
 
     const goToPrevResult = useCallback(() => {
         setSearchResults(prev => {
@@ -163,12 +171,14 @@ const ChatWindow = ({ chat, onDelete }) => {
                 : prev.currentIndex - 1;
             const prevMessageId = prev.messageIds[prevIndex];
 
-            // Scroll after state update
-            setTimeout(() => scrollToSearchResult(prevMessageId), 0);
+            // Load messages around this result and scroll
+            fetchMessagesAround(prevMessageId).then(() => {
+                setTimeout(() => scrollToSearchResult(prevMessageId), 100);
+            });
 
             return { ...prev, currentIndex: prevIndex };
         });
-    }, [scrollToSearchResult]);
+    }, [chat.id, scrollToSearchResult]);
 
     const handleTogglePin = async (messageId) => {
         try {

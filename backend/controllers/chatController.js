@@ -133,6 +133,35 @@ class ChatController {
     }
 
     /**
+     * GET /api/chats/:id/messages/around/:messageId
+     * Get messages around a specific message (for search navigation)
+     */
+    static async getMessagesAround(req, res) {
+        try {
+            const chatId = req.params.id;
+            const messageId = req.params.messageId;
+
+            // Verify chat belongs to user
+            const chat = await Chat.findById(chatId, req.userId);
+            if (!chat) {
+                return res.status(404).json({ error: 'Chat not found' });
+            }
+
+            const data = await Message.getMessagesAround(chatId, parseInt(messageId));
+
+            res.json({
+                success: true,
+                messages: data.messages,
+                targetIndex: data.targetIndex,
+                totalMessages: data.totalMessages
+            });
+        } catch (error) {
+            console.error('Get messages around error:', error);
+            res.status(500).json({ error: 'Failed to get messages' });
+        }
+    }
+
+    /**
      * GET /api/chats/:id/search
      * Search messages in a chat
      */

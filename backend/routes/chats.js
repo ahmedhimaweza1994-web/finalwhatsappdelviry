@@ -23,6 +23,12 @@ router.get('/:id', authMiddleware, ChatController.getChat);
 router.get('/:id/messages', authMiddleware, ChatController.getMessages);
 
 /**
+ * GET /api/chats/:id/messages/around/:messageId
+ * Get messages around a specific message (for search navigation)
+ */
+router.get('/:id/messages/around/:messageId', authMiddleware, ChatController.getMessagesAround);
+
+/**
  * DELETE /api/chats/:id
  * Delete a chat
  */
