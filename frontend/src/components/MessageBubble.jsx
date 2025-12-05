@@ -7,7 +7,7 @@ import VideoMessage from './MessageTypes/VideoMessage';
 import AudioMessage from './MessageTypes/AudioMessage';
 import DocumentMessage from './MessageTypes/DocumentMessage';
 
-const MessageBubble = ({ message, prevMessage, onTogglePin }) => {
+const MessageBubble = ({ message, prevMessage, onTogglePin, searchQuery, isSearchMatch }) => {
     const isSent = message.sender_is_me;
     const showSender = !prevMessage || prevMessage.sender_name !== message.sender_name;
     const [showMenu, setShowMenu] = useState(false);
@@ -53,7 +53,7 @@ const MessageBubble = ({ message, prevMessage, onTogglePin }) => {
                 className={`relative max-w-[65%] px-3 py-2 rounded-wa shadow-wa cursor-context-menu ${isSent
                     ? 'bg-wa-sent dark:bg-wa-sent-dark text-black dark:text-white'
                     : 'bg-wa-received dark:bg-wa-received-dark text-wa-text dark:text-wa-text-dark'
-                    }`}
+                    } ${isSearchMatch ? 'ring-2 ring-yellow-400 ring-offset-1' : ''}`}
             >
                 {/* Message tail */}
                 <div className={isSent ? 'message-tail-sent' : 'message-tail-received'} />

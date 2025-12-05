@@ -95,12 +95,13 @@ exports.searchMessages = async (req, res) => {
             return res.status(404).json({ error: 'Chat not found' });
         }
 
-        const results = await Message.searchInChat(id, q.trim());
+        const searchData = await Message.searchInChat(id, q.trim());
 
         res.json({
             success: true,
-            results,
-            count: results.length,
+            matchingMessageIds: searchData.matchingMessageIds,
+            totalOccurrences: searchData.totalOccurrences,
+            totalMessages: searchData.totalMessages,
             query: q
         });
     } catch (error) {

@@ -4,7 +4,7 @@ import MessageBubble from './MessageBubble';
 import SearchBar from './SearchBar';
 import PinnedMessagesBar from './PinnedMessagesBar';
 import DateSeparator from './DateSeparator';
-import { FaArrowDown, FaEllipsisV, FaTrash, FaThumbtack } from 'react-icons/fa';
+import { FaArrowDown, FaEllipsisV, FaTrash, FaThumbtack, FaChevronUp, FaChevronDown } from 'react-icons/fa';
 import useInfiniteScroll from '../hooks/useInfiniteScroll';
 
 const ChatWindow = ({ chat, onDelete }) => {
@@ -15,7 +15,8 @@ const ChatWindow = ({ chat, onDelete }) => {
     const [error, setError] = useState('');
     const [showScrollButton, setShowScrollButton] = useState(false);
     const [showMenu, setShowMenu] = useState(false);
-    const [searchResults, setSearchResults] = useState(null);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState(null); // { messageIds: [], totalOccurrences: 0, currentIndex: 0 }
     const [pinnedMessages, setPinnedMessages] = useState([]);
     const messagesEndRef = useRef(null);
     const containerRef = useRef(null);
@@ -82,6 +83,7 @@ const ChatWindow = ({ chat, onDelete }) => {
 
     const handleSearch = async (query) => {
         if (!query || query.trim().length === 0) {
+            setSearchQuery('');
             setSearchResults(null);
             return;
         }
@@ -89,14 +91,58 @@ const ChatWindow = ({ chat, onDelete }) => {
             const response = await api.get(`/chats/${chat.id}/search`, {
                 params: { q: query }
             });
-            setSearchResults(response.data.results || []);
+
+            setSearchQuery(query);
+            setSearchResults({
+                messageIds: response.data.matchingMessageIds || [],
+                totalOccurrences: response.data.totalOccurrences || 0,
+                totalMessages: response.data.totalMessages || 0,
+                currentIndex: 0
+            });
+
+            // Scroll to first result
+            if (response.data.matchingMessageIds?.length > 0) {
+                setTimeout(() => {
+                    scrollToSearchResult(response.data.matchingMessageIds[0]);
+                }, 100);
+            }
         } catch (err) {
             console.error('Error searching messages:', err);
         }
     };
 
     const handleClearSearch = () => {
+        setSearchQuery('');
         setSearchResults(null);
+    };
+
+    const scrollToSearchResult = (messageId) => {
+        const messageEl = document.getElementById(`message-${messageId}`);
+        if (messageEl) {
+            messageEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            messageEl.classList.add('search-highlight-active');
+            setTimeout(() => {
+                messageEl.classList.remove('search-highlight-active');
+            }, 2000);
+        }
+    };
+
+    const goToNextResult = () => {
+        if (!searchResults || searchResults.messageIds.length === 0) return;
+
+        const nextIndex = (searchResults.currentIndex + 1) % searchResults.messageIds.length;
+        setSearchResults({ ...searchResults, currentIndex: nextIndex });
+        scrollToSearchResult(searchResults.messageIds[nextIndex]);
+    };
+
+    const goToPrevResult = () => {
+        if (!searchResults || searchResults.messageIds.length === 0) return;
+
+        const prevIndex = searchResults.currentIndex === 0
+            ? searchResults.messageIds.length - 1
+            : searchResults.currentIndex - 1;
+        setSearchResults({ ...searchResults, currentIndex: prevIndex });
+        scrollToSearchResult(searchResults.messageIds[prevIndex]);
     };
 
     const handleTogglePin = async (messageId) => {
@@ -212,6 +258,32 @@ const ChatWindow = ({ chat, onDelete }) => {
                 onUnpin={handleTogglePin}
             />
 
+            {/* Search Navigation UI */}
+            {searchResults && searchResults.totalMessages > 0 && (
+                <div className="bg-wa-panel dark:bg-wa-panel-dark px-4 py-2 flex items-center justify-between border-b border-wa-border dark:border-wa-border-dark">
+                    <div className="text-sm text-wa-text-secondary dark:text-wa-text-secondary-dark">
+                        {searchResults.totalOccurrences} occurrence{searchResults.totalOccurrences !== 1 ? 's' : ''} in {searchResults.totalMessages} message{searchResults.totalMessages !== 1 ? 's' : ''}
+                        {' '}• {searchResults.currentIndex + 1} of {searchResults.totalMessages}
+                    </div>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={goToPrevResult}
+                            className="p-2 hover:bg-wa-hover dark:hover:bg-wa-hover-dark rounded transition-colors"
+                            title="Previous result"
+                        >
+                            <FaChevronUp />
+                        </button>
+                        <button
+                            onClick={goToNextResult}
+                            className="p-2 hover:bg-wa-hover dark:hover:bg-wa-hover-dark rounded transition-colors"
+                            title="Next result"
+                        >
+                            <FaChevronDown />
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* Messages */}
             <div
                 ref={containerRef}
@@ -221,19 +293,6 @@ const ChatWindow = ({ chat, onDelete }) => {
                 {loading && messages.length === 0 ? (
                     <div className="flex items-center justify-center h-full">
                         <div className="spinner"></div>
-                    </div>
-                ) : searchResults ? (
-                    <div>
-                        <div className="text-center py-2 text-sm text-wa-text-secondary dark:text-wa-text-secondary-dark">
-                            Found {searchResults.length} result{searchResults.length !== 1 ? 's' : ''}
-                        </div>
-                        {searchResults.map((message) => (
-                            <MessageBubble
-                                key={message.id}
-                                message={message}
-                                onTogglePin={handleTogglePin}
-                            />
-                        ))}
                     </div>
                 ) : messages.length === 0 ? (
                     <div className="flex items-center justify-center h-full text-wa-text-secondary dark:text-wa-text-secondary-dark">
@@ -259,6 +318,8 @@ const ChatWindow = ({ chat, onDelete }) => {
                                 new Date(displayedMessages[index - 1].timestamp).toDateString() !==
                                 new Date(message.timestamp).toDateString();
 
+                            const isSearchMatch = searchResults?.messageIds.includes(message.id);
+
                             return (
                                 <React.Fragment key={message.id}>
                                     {showDateSeparator && (
@@ -267,6 +328,8 @@ const ChatWindow = ({ chat, onDelete }) => {
                                     <MessageBubble
                                         message={message}
                                         onTogglePin={handleTogglePin}
+                                        searchQuery={searchQuery}
+                                        isSearchMatch={isSearchMatch}
                                     />
                                 </React.Fragment>
                             );

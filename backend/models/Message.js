@@ -65,58 +65,37 @@ class Message {
         await db.query('DELETE FROM messages WHERE chat_id = $1', [chatId]);
     }
 
-    // Search messages in a chat (supports Arabic and English)
-    // Counts each occurrence of the search term (like WhatsApp does)
-    static async searchInChat(chatId, searchQuery, limit = 10000) {
+    // Search messages in a chat (WhatsApp-style)
+    // Returns matching message IDs and total occurrence count
+    static async searchInChat(chatId, searchQuery) {
+        // Escape special regex characters
+        const escapedQuery = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
         const result = await db.query(
-            `WITH message_occurrences AS (
-                SELECT 
-                    m.id,
-                    m.chat_id,
-                    m.sender_name,
-                    m.sender_is_me,
-                    m.timestamp,
-                    m.body,
-                    m.message_type,
-                    m.order_index,
-                    m.metadata,
-                    m.is_pinned,
-                    m.pinned_at,
-                    json_agg(json_build_object(
-                        'id', mf.id,
-                        'original_name', mf.original_name,
-                        'storage_path', mf.storage_path,
-                        'thumb_path', mf.thumb_path,
-                        'mime_type', mf.mime_type,
-                        'size_bytes', mf.size_bytes
-                    )) FILTER (WHERE mf.id IS NOT NULL) as media,
-                    -- Count how many times the search term appears in body
-                    (LENGTH(m.body) - LENGTH(REPLACE(LOWER(m.body), LOWER($2), ''))) / LENGTH($2) as body_count,
-                    -- Count how many times the search term appears in sender_name
-                    (LENGTH(m.sender_name) - LENGTH(REPLACE(LOWER(m.sender_name), LOWER($2), ''))) / LENGTH($2) as sender_count
-                FROM messages m
-                LEFT JOIN media_files mf ON mf.message_id = m.id
-                WHERE m.chat_id = $1 AND (m.body ILIKE $3 OR m.sender_name ILIKE $3)
-                GROUP BY m.id, m.chat_id, m.sender_name, m.sender_is_me, m.timestamp, 
-                         m.body, m.message_type, m.order_index, m.metadata, m.is_pinned, m.pinned_at
-            ),
-            expanded_results AS (
-                SELECT 
-                    mo.*,
-                    -- Generate a row for each occurrence
-                    generate_series(1, GREATEST(mo.body_count, mo.sender_count)::integer) as occurrence_num
-                FROM message_occurrences mo
-            )
-            SELECT 
-                id, chat_id, sender_name, sender_is_me, timestamp, body, 
-                message_type, order_index, metadata, is_pinned, 
-                pinned_at, media
-            FROM expanded_results
-            ORDER BY timestamp DESC
-            LIMIT $4`,
-            [chatId, searchQuery, `%${searchQuery}%`, limit]
+            `SELECT 
+                m.id,
+                m.timestamp,
+                -- Count occurrences in body using length difference method (works for all languages)
+                COALESCE((LENGTH(m.body) - LENGTH(REPLACE(LOWER(m.body), LOWER($2), ''))) / LENGTH($2), 0) as body_count,
+                -- Count occurrences in sender_name
+                COALESCE((LENGTH(m.sender_name) - LENGTH(REPLACE(LOWER(m.sender_name), LOWER($2), ''))) / LENGTH($2), 0) as sender_count
+            FROM messages m
+            WHERE m.chat_id = $1 
+              AND (m.body ILIKE $3 OR m.sender_name ILIKE $3)
+            ORDER BY m.timestamp ASC`,
+            [chatId, searchQuery, `%${searchQuery}%`]
         );
-        return result.rows;
+
+        // Calculate total occurrences across all messages
+        const totalOccurrences = result.rows.reduce((sum, row) => {
+            return sum + parseInt(row.body_count || 0) + parseInt(row.sender_count || 0);
+        }, 0);
+
+        return {
+            matchingMessageIds: result.rows.map(r => r.id),
+            totalOccurrences: totalOccurrences,
+            totalMessages: result.rows.length
+        };
     }
 
     // Toggle pin status for a message
