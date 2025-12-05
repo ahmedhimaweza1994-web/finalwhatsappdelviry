@@ -325,8 +325,8 @@ const ChatWindow = ({ chat, onDelete }) => {
                     </div>
                 ) : (
                     <>
-                        {/* Load More Button */}
-                        {messages.length > messageLimit && (
+                        {/* Load More Button - Hide during search */}
+                        {!searchResults && messages.length > messageLimit && (
                             <div className="text-center py-4">
                                 <button
                                     onClick={loadMoreMessages}
