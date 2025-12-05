@@ -21,7 +21,7 @@ const SearchBar = ({ onSearch, onClear, placeholder = "Search messages..." }) =>
         }, 500);
 
         return () => clearTimeout(timeoutId);
-    }, [query, onSearch]);
+    }, [query]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleClear = () => {
         setQuery('');

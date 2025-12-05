@@ -81,7 +81,7 @@ const ChatWindow = ({ chat, onDelete }) => {
         }
     };
 
-    const handleSearch = async (query) => {
+    const handleSearch = useCallback(async (query) => {
         if (!query || query.trim().length === 0) {
             setSearchQuery('');
             setSearchResults(null);
@@ -109,7 +109,7 @@ const ChatWindow = ({ chat, onDelete }) => {
         } catch (err) {
             console.error('Error searching messages:', err);
         }
-    };
+    }, [chat.id, scrollToSearchResult]);
 
     const handleClearSearch = () => {
         setSearchQuery('');
