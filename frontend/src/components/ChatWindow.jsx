@@ -128,7 +128,7 @@ const ChatWindow = ({ chat, onDelete }) => {
         } catch (err) {
             console.error('Error searching messages:', err);
         }
-    }, [chat.id, scrollToSearchResult]);
+    }, [chat.id, fetchMessagesAround, scrollToSearchResult]);
 
     const handleClearSearch = useCallback(() => {
         setSearchQuery('');

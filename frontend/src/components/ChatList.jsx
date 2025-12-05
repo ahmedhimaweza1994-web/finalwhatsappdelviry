@@ -14,8 +14,8 @@ const ChatList = ({ selectedChat, onSelectChat, onOpenUpload }) => {
 
     useEffect(() => {
         loadChats();
-        // Poll for updates every 10 seconds
-        const interval = setInterval(loadChats, 10000);
+        // Poll for updates every 30 seconds (reduced from 10s to prevent 429)
+        const interval = setInterval(loadChats, 30000);
         return () => clearInterval(interval);
     }, []);
 
