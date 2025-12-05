@@ -114,17 +114,29 @@ const ChatWindow = ({ chat, onDelete }) => {
     const handleClearSearch = () => {
         setSearchQuery('');
         setSearchResults(null);
+        // Reset to normal limit when clearing search
+        setMessageLimit(50);
     };
 
     const scrollToSearchResult = (messageId) => {
-        const messageEl = document.getElementById(`message-${messageId}`);
-        if (messageEl) {
-            messageEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            messageEl.classList.add('search-highlight-active');
-            setTimeout(() => {
-                messageEl.classList.remove('search-highlight-active');
-            }, 2000);
+        // Ensure the message is in the displayed range
+        const messageIndex = messages.findIndex(m => m.id === messageId);
+        if (messageIndex !== -1 && messageIndex >= messageLimit) {
+            // Need to load more messages to show this one
+            setMessageLimit(messageIndex + 50);
         }
+
+        // Wait a bit for render, then scroll
+        setTimeout(() => {
+            const messageEl = document.getElementById(`message-${messageId}`);
+            if (messageEl) {
+                messageEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                messageEl.classList.add('search-highlight-active');
+                setTimeout(() => {
+                    messageEl.classList.remove('search-highlight-active');
+                }, 2000);
+            }
+        }, 100);
     };
 
     const goToNextResult = () => {
