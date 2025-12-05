@@ -96,6 +96,7 @@ const ChatWindow = ({ chat, onDelete }) => {
     };
 
     const handleSearch = useCallback(async (query) => {
+        console.log('[DEBUG] handleSearch called with:', query);
         if (!query || query.trim().length === 0) {
             setSearchQuery('');
             setSearchResults(null);
@@ -107,9 +108,11 @@ const ChatWindow = ({ chat, onDelete }) => {
                 params: { q: query }
             });
 
+            console.log('[DEBUG] Search response:', response.data);
             setSearchQuery(query);
             setSearchResults(response.data);
             setShowSearchModal(true);
+            console.log('[DEBUG] Modal should open now');
         } catch (err) {
             console.error('Error searching messages:', err);
         }
@@ -264,6 +267,7 @@ const ChatWindow = ({ chat, onDelete }) => {
             />
 
             {/* Search Results Modal */}
+            {console.log('[DEBUG] showSearchModal:', showSearchModal, 'searchResults:', searchResults)}
             <SearchResultsModal
                 isOpen={showSearchModal}
                 onClose={() => setShowSearchModal(false)}
