@@ -35,6 +35,12 @@ router.get('/:id/messages/around/:messageId', authMiddleware, ChatController.get
 router.delete('/:id', authMiddleware, ChatController.deleteChat);
 
 /**
+ * PUT /api/chats/:id
+ * Update chat details
+ */
+router.put('/:id', authMiddleware, ChatController.updateChat);
+
+/**
  * GET /api/chats/:id/search
  * Search messages in a chat
  */

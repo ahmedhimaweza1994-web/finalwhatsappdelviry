@@ -77,6 +77,14 @@ class Chat {
         );
         return result.rows[0];
     }
+
+    static async updateName(id, userId, newName) {
+        const result = await db.query(
+            'UPDATE chats SET chat_name = $1 WHERE id = $2 AND user_id = $3 RETURNING *',
+            [newName, id, userId]
+        );
+        return result.rows[0];
+    }
 }
 
 module.exports = Chat;

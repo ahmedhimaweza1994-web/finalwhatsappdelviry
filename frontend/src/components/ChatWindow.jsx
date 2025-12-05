@@ -180,6 +180,26 @@ const ChatWindow = ({ chat, onDelete }) => {
         setShowScrollButton(!isNearBottom);
     };
 
+    const handleRename = async () => {
+        const newName = window.prompt('Enter new chat name:', chat.chat_name);
+        if (!newName || newName.trim() === '' || newName === chat.chat_name) return;
+
+        try {
+            const response = await api.put(`/chats/${chat.id}`, { chat_name: newName });
+            // Update local state if needed, but ideally parent should reload. 
+            // Since we don't have a direct way to update parent list from here without a prop, 
+            // we'll rely on the parent's polling or trigger a callback if available.
+            // For now, we can update the chat object locally if it's state-driven, 
+            // but 'chat' is a prop. 
+            // We should call an onUpdate prop if it existed, or just force a reload.
+            // Let's assume the user will see the update on next poll or we can reload the page.
+            // Better: Call onRename prop if we add it, or just alert success.
+            window.location.reload(); // Simple and effective for now to refresh list and header
+        } catch (error) {
+            alert('Failed to rename chat: ' + (error.response?.data?.error || error.message));
+        }
+    };
+
     const handleDelete = async () => {
         if (!window.confirm(`Are you sure you want to delete "${chat.chat_name}"? This will permanently delete all messages and media files.`)) {
             return;
@@ -245,6 +265,13 @@ const ChatWindow = ({ chat, onDelete }) => {
                                 >
                                     <FaTrash />
                                     Delete Chat
+                                </button>
+                                <button
+                                    onClick={() => { setShowMenu(false); handleRename(); }}
+                                    className="w-full px-4 py-2 text-left hover:bg-wa-panel dark:hover:bg-wa-bg-dark text-wa-text dark:text-wa-text-dark flex items-center gap-3 transition-colors"
+                                >
+                                    <span className="text-lg">✏️</span>
+                                    Rename Chat
                                 </button>
                             </div>
                         </>

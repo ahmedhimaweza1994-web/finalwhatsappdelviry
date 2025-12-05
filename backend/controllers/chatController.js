@@ -194,6 +194,31 @@ class ChatController {
             res.status(500).json({ error: 'Search failed' });
         }
     }
+    /**
+     * PUT /api/chats/:id
+     * Update chat details (rename)
+     */
+    static async updateChat(req, res) {
+        try {
+            const chatId = req.params.id;
+            const { chat_name } = req.body;
+
+            if (!chat_name || chat_name.trim().length === 0) {
+                return res.status(400).json({ error: 'Chat name is required' });
+            }
+
+            const chat = await Chat.updateName(chatId, req.userId, chat_name.trim());
+
+            if (!chat) {
+                return res.status(404).json({ error: 'Chat not found' });
+            }
+
+            res.json({ chat });
+        } catch (error) {
+            console.error('Update chat error:', error);
+            res.status(500).json({ error: 'Failed to update chat' });
+        }
+    }
 }
 
 module.exports = ChatController;
