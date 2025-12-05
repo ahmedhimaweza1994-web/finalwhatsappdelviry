@@ -66,24 +66,44 @@ class Message {
     }
 
     // Search messages in a chat (supports Arabic and English)
+    // Counts each occurrence of the search term (like WhatsApp does)
     static async searchInChat(chatId, searchQuery, limit = 10000) {
         const result = await db.query(
-            `SELECT m.*, 
-              json_agg(json_build_object(
-                'id', mf.id,
-                'original_name', mf.original_name,
-                'storage_path', mf.storage_path,
-                'thumb_path', mf.thumb_path,
-                'mime_type', mf.mime_type,
-                'size_bytes', mf.size_bytes
-              )) FILTER (WHERE mf.id IS NOT NULL) as media
-       FROM messages m
-       LEFT JOIN media_files mf ON mf.message_id = m.id
-       WHERE m.chat_id = $1 AND (m.body ILIKE $2 OR m.sender_name ILIKE $2)
-       GROUP BY m.id
-       ORDER BY m.timestamp DESC
-       LIMIT $3`,
-            [chatId, `%${searchQuery}%`, limit]
+            `WITH message_occurrences AS (
+                SELECT 
+                    m.*,
+                    json_agg(json_build_object(
+                        'id', mf.id,
+                        'original_name', mf.original_name,
+                        'storage_path', mf.storage_path,
+                        'thumb_path', mf.thumb_path,
+                        'mime_type', mf.mime_type,
+                        'size_bytes', mf.size_bytes
+                    )) FILTER (WHERE mf.id IS NOT NULL) as media,
+                    -- Count how many times the search term appears in body
+                    (LENGTH(m.body) - LENGTH(REPLACE(LOWER(m.body), LOWER($2), ''))) / LENGTH($2) as body_count,
+                    -- Count how many times the search term appears in sender_name
+                    (LENGTH(m.sender_name) - LENGTH(REPLACE(LOWER(m.sender_name), LOWER($2), ''))) / LENGTH($2) as sender_count
+                FROM messages m
+                LEFT JOIN media_files mf ON mf.message_id = m.id
+                WHERE m.chat_id = $1 AND (m.body ILIKE $3 OR m.sender_name ILIKE $3)
+                GROUP BY m.id
+            ),
+            expanded_results AS (
+                SELECT 
+                    mo.*,
+                    -- Generate a row for each occurrence
+                    generate_series(1, GREATEST(mo.body_count, mo.sender_count)::integer) as occurrence_num
+                FROM message_occurrences mo
+            )
+            SELECT 
+                id, chat_id, sender_name, sender_is_me, timestamp, body, 
+                message_type, order_index, metadata, created_at, is_pinned, 
+                pinned_at, media
+            FROM expanded_results
+            ORDER BY timestamp DESC
+            LIMIT $4`,
+            [chatId, searchQuery, `%${searchQuery}%`, limit]
         );
         return result.rows;
     }
