@@ -78,7 +78,7 @@ const ChatWindow = ({ chat, onDelete }) => {
         }
     };
 
-    const fetchMessagesAround = async (messageId) => {
+    const fetchMessagesAround = useCallback(async (messageId) => {
         try {
             const response = await api.get(`/chats/${chat.id}/messages/around/${messageId}`);
             setMessages(response.data.messages || []);
@@ -87,7 +87,7 @@ const ChatWindow = ({ chat, onDelete }) => {
             console.error('Error fetching messages around:', err);
             return -1;
         }
-    };
+    }, [chat.id]);
 
     const fetchPinnedMessages = async () => {
         try {
@@ -166,7 +166,7 @@ const ChatWindow = ({ chat, onDelete }) => {
 
             return { ...prev, currentIndex: nextIndex };
         });
-    }, [chat.id, scrollToSearchResult]);
+    }, [fetchMessagesAround, scrollToSearchResult]);
 
     const goToPrevResult = useCallback(() => {
         setSearchResults(prev => {
@@ -184,7 +184,7 @@ const ChatWindow = ({ chat, onDelete }) => {
 
             return { ...prev, currentIndex: prevIndex };
         });
-    }, [chat.id, scrollToSearchResult]);
+    }, [fetchMessagesAround, scrollToSearchResult]);
 
     const handleTogglePin = async (messageId) => {
         try {
