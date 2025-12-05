@@ -65,34 +65,42 @@ class Message {
         await db.query('DELETE FROM messages WHERE chat_id = $1', [chatId]);
     }
 
-    // Search messages in a chat (WhatsApp-style)
-    // Returns matching message IDs and total occurrence count
+    // Search messages in a chat - Returns full message objects for popup display
     static async searchInChat(chatId, searchQuery) {
-        // Escape special regex characters
-        const escapedQuery = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
         const result = await db.query(
             `SELECT 
                 m.id,
+                m.body,
+                SUBSTRING(m.body, 1, 150) as preview,
+                m.sender_name,
                 m.timestamp,
-                -- Count occurrences in body using length difference method (works for all languages)
+                m.message_type,
+                -- Count occurrences in body
                 COALESCE((LENGTH(m.body) - LENGTH(REPLACE(LOWER(m.body), LOWER($2), ''))) / LENGTH($2), 0) as body_count,
                 -- Count occurrences in sender_name
                 COALESCE((LENGTH(m.sender_name) - LENGTH(REPLACE(LOWER(m.sender_name), LOWER($2), ''))) / LENGTH($2), 0) as sender_count
             FROM messages m
             WHERE m.chat_id = $1 
               AND (m.body ILIKE $3 OR m.sender_name ILIKE $3)
-            ORDER BY m.timestamp ASC`,
+            ORDER BY m.timestamp DESC`,
             [chatId, searchQuery, `%${searchQuery}%`]
         );
 
-        // Calculate total occurrences across all messages
+        // Calculate total occurrences
         const totalOccurrences = result.rows.reduce((sum, row) => {
             return sum + parseInt(row.body_count || 0) + parseInt(row.sender_count || 0);
         }, 0);
 
         return {
-            matchingMessageIds: result.rows.map(r => r.id),
+            results: result.rows.map(r => ({
+                id: r.id,
+                body: r.body,
+                preview: r.preview,
+                sender_name: r.sender_name,
+                timestamp: r.timestamp,
+                message_type: r.message_type,
+                occurrences: parseInt(r.body_count || 0) + parseInt(r.sender_count || 0)
+            })),
             totalOccurrences: totalOccurrences,
             totalMessages: result.rows.length
         };

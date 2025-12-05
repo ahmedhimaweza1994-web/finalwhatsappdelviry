@@ -163,7 +163,7 @@ class ChatController {
 
     /**
      * GET /api/chats/:id/search
-     * Search messages in a chat
+     * Search messages in a chat - returns full messages for popup display
      */
     static async searchMessages(req, res) {
         try {
@@ -184,7 +184,7 @@ class ChatController {
 
             res.json({
                 success: true,
-                matchingMessageIds: searchData.matchingMessageIds,
+                results: searchData.results,
                 totalOccurrences: searchData.totalOccurrences,
                 totalMessages: searchData.totalMessages,
                 query

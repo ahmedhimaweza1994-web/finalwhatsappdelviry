@@ -4,19 +4,21 @@ import MessageBubble from './MessageBubble';
 import SearchBar from './SearchBar';
 import PinnedMessagesBar from './PinnedMessagesBar';
 import DateSeparator from './DateSeparator';
-import { FaArrowDown, FaEllipsisV, FaTrash, FaThumbtack, FaChevronUp, FaChevronDown } from 'react-icons/fa';
+import SearchResultsModal from './SearchResultsModal';
+import { FaArrowDown, FaEllipsisV, FaTrash, FaThumbtack } from 'react-icons/fa';
 import useInfiniteScroll from '../hooks/useInfiniteScroll';
 
 const ChatWindow = ({ chat, onDelete }) => {
     const [messages, setMessages] = useState([]);
     const [displayedMessages, setDisplayedMessages] = useState([]);
-    const [messageLimit, setMessageLimit] = useState(50); // Start with 50 messages
+    const [messageLimit, setMessageLimit] = useState(50);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [showScrollButton, setShowScrollButton] = useState(false);
     const [showMenu, setShowMenu] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
-    const [searchResults, setSearchResults] = useState(null); // { messageIds: [], totalOccurrences: 0, currentIndex: 0 }
+    const [searchResults, setSearchResults] = useState(null); // Full search results for modal
+    const [showSearchModal, setShowSearchModal] = useState(false);
     const [pinnedMessages, setPinnedMessages] = useState([]);
     const messagesEndRef = useRef(null);
     const containerRef = useRef(null);
@@ -102,6 +104,7 @@ const ChatWindow = ({ chat, onDelete }) => {
         if (!query || query.trim().length === 0) {
             setSearchQuery('');
             setSearchResults(null);
+            setShowSearchModal(false);
             return;
         }
         try {
@@ -110,30 +113,30 @@ const ChatWindow = ({ chat, onDelete }) => {
             });
 
             setSearchQuery(query);
-            setSearchResults({
-                messageIds: response.data.matchingMessageIds || [],
-                totalOccurrences: response.data.totalOccurrences || 0,
-                totalMessages: response.data.totalMessages || 0,
-                currentIndex: 0
-            });
-
-            // Load messages around first result and scroll
-            if (response.data.matchingMessageIds?.length > 0) {
-                fetchMessagesAround(response.data.matchingMessageIds[0]).then(() => {
-                    setTimeout(() => {
-                        scrollToSearchResult(response.data.matchingMessageIds[0]);
-                    }, 100);
-                });
-            }
+            setSearchResults(response.data);
+            setShowSearchModal(true);
         } catch (err) {
             console.error('Error searching messages:', err);
         }
-    }, [chat.id, fetchMessagesAround, scrollToSearchResult]);
+    }, [chat.id]);
+
+    const handleResultClick = useCallback(async (messageId) => {
+        // Close modal
+        setShowSearchModal(false);
+
+        // Load messages around this result
+        await fetchMessagesAround(messageId);
+
+        // Scroll to message
+        setTimeout(() => {
+            scrollToSearchResult(messageId);
+        }, 200);
+    }, [fetchMessagesAround]);
 
     const handleClearSearch = useCallback(() => {
         setSearchQuery('');
         setSearchResults(null);
-        // Reset to normal limit when clearing search
+        setShowSearchModal(false);
         setMessageLimit(50);
     }, []);
 
@@ -151,40 +154,6 @@ const ChatWindow = ({ chat, onDelete }) => {
             console.warn(`Message ${messageId} not found in DOM`);
         }
     }, []);
-
-    const goToNextResult = useCallback(() => {
-        setSearchResults(prev => {
-            if (!prev || prev.messageIds.length === 0) return prev;
-
-            const nextIndex = (prev.currentIndex + 1) % prev.messageIds.length;
-            const nextMessageId = prev.messageIds[nextIndex];
-
-            // Load messages around this result and scroll
-            fetchMessagesAround(nextMessageId).then(() => {
-                setTimeout(() => scrollToSearchResult(nextMessageId), 100);
-            });
-
-            return { ...prev, currentIndex: nextIndex };
-        });
-    }, [fetchMessagesAround, scrollToSearchResult]);
-
-    const goToPrevResult = useCallback(() => {
-        setSearchResults(prev => {
-            if (!prev || prev.messageIds.length === 0) return prev;
-
-            const prevIndex = prev.currentIndex === 0
-                ? prev.messageIds.length - 1
-                : prev.currentIndex - 1;
-            const prevMessageId = prev.messageIds[prevIndex];
-
-            // Load messages around this result and scroll
-            fetchMessagesAround(prevMessageId).then(() => {
-                setTimeout(() => scrollToSearchResult(prevMessageId), 100);
-            });
-
-            return { ...prev, currentIndex: prevIndex };
-        });
-    }, [fetchMessagesAround, scrollToSearchResult]);
 
     const handleTogglePin = async (messageId) => {
         try {
@@ -299,31 +268,14 @@ const ChatWindow = ({ chat, onDelete }) => {
                 onUnpin={handleTogglePin}
             />
 
-            {/* Search Navigation UI */}
-            {searchResults && searchResults.totalMessages > 0 && (
-                <div className="bg-wa-panel dark:bg-wa-panel-dark px-4 py-2 flex items-center justify-between border-b border-wa-border dark:border-wa-border-dark">
-                    <div className="text-sm text-wa-text-secondary dark:text-wa-text-secondary-dark">
-                        {searchResults.totalOccurrences} occurrence{searchResults.totalOccurrences !== 1 ? 's' : ''} in {searchResults.totalMessages} message{searchResults.totalMessages !== 1 ? 's' : ''}
-                        {' '}• {searchResults.currentIndex + 1} of {searchResults.totalMessages}
-                    </div>
-                    <div className="flex gap-2">
-                        <button
-                            onClick={goToPrevResult}
-                            className="p-2 hover:bg-wa-hover dark:hover:bg-wa-hover-dark rounded transition-colors"
-                            title="Previous result"
-                        >
-                            <FaChevronUp />
-                        </button>
-                        <button
-                            onClick={goToNextResult}
-                            className="p-2 hover:bg-wa-hover dark:hover:bg-wa-hover-dark rounded transition-colors"
-                            title="Next result"
-                        >
-                            <FaChevronDown />
-                        </button>
-                    </div>
-                </div>
-            )}
+            {/* Search Results Modal */}
+            <SearchResultsModal
+                isOpen={showSearchModal}
+                onClose={() => setShowSearchModal(false)}
+                results={searchResults}
+                searchQuery={searchQuery}
+                onResultClick={handleResultClick}
+            />
 
             {/* Messages */}
             <div
