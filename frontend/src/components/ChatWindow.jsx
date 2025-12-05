@@ -310,37 +310,37 @@ const ChatWindow = ({ chat, onDelete }) => {
                                 new Date(displayedMessages[index - 1].timestamp).toDateString() !==
                                 new Date(message.timestamp).toDateString();
 
-                            const isSearchMatch = searchResults?.messageIds.includes(message.id);
-
-                            return (
-                                <React.Fragment key={message.id}>
-                                    {showDateSeparator && (
-                                        <DateSeparator date={message.timestamp} />
-                                    )}
-                                    <MessageBubble
-                                        message={message}
-                                        onTogglePin={handleTogglePin}
-                                        searchQuery={searchQuery}
-                                        isSearchMatch={isSearchMatch}
-                                    />
+                            {
+                                showDateSeparator && (
+                                    <DateSeparator date={message.timestamp} />
+                                )
+                            }
+                            <MessageBubble
+                                message={message}
+                                onTogglePin={handleTogglePin}
+                                searchQuery={searchQuery}
+                                isSearchMatch={false}
+                            />
                                 </React.Fragment>
-                            );
+                );
                         })}
-                        <div ref={messagesEndRef} />
-                    </>
+                <div ref={messagesEndRef} />
+            </>
                 )}
-            </div>
-
-            {/* Scroll to bottom button */}
-            {showScrollButton && (
-                <button
-                    onClick={scrollToBottom}
-                    className="absolute bottom-6 right-6 bg-white dark:bg-wa-received-dark p-3 rounded-full shadow-wa-lg hover:shadow-xl transition-all z-10 text-wa-icon dark:text-wa-icon-dark hover:text-wa-green"
-                >
-                    <FaArrowDown />
-                </button>
-            )}
         </div>
+
+            {/* Scroll to bottom button */ }
+    {
+        showScrollButton && (
+            <button
+                onClick={scrollToBottom}
+                className="absolute bottom-6 right-6 bg-white dark:bg-wa-received-dark p-3 rounded-full shadow-wa-lg hover:shadow-xl transition-all z-10 text-wa-icon dark:text-wa-icon-dark hover:text-wa-green"
+            >
+                <FaArrowDown />
+            </button>
+        )
+    }
+        </div >
     );
 };
 
