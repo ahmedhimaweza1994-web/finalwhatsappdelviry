@@ -66,7 +66,7 @@ class Message {
     }
 
     // Search messages in a chat (supports Arabic and English)
-    static async searchInChat(chatId, searchQuery, limit = 50) {
+    static async searchInChat(chatId, searchQuery, limit = 10000) {
         const result = await db.query(
             `SELECT m.*, 
               json_agg(json_build_object(
