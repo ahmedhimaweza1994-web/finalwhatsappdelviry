@@ -31,12 +31,18 @@ const ChatWindow = ({ chat, onDelete }) => {
     useEffect(() => {
         // Display messages based on limit
         if (messages.length > 0) {
-            const latest = messages.slice(-messageLimit);
-            setDisplayedMessages(latest);
+            if (searchResults && searchResults.messageIds.length > 0) {
+                // During search, show ALL loaded messages (fetchMessagesAround loads ~100)
+                setDisplayedMessages(messages);
+            } else {
+                // Normal mode - show only latest based on limit
+                const latest = messages.slice(-messageLimit);
+                setDisplayedMessages(latest);
 
-            // Only scroll to bottom on initial load or when switching chats
-            if (messageLimit === 50 && !searchResults) {
-                setTimeout(() => scrollToBottom(), 100);
+                // Only scroll to bottom on initial load or when switching chats
+                if (messageLimit === 50) {
+                    setTimeout(() => scrollToBottom(), 100);
+                }
             }
         } else {
             setDisplayedMessages([]);
