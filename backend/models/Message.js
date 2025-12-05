@@ -114,23 +114,36 @@ class Message {
                 SELECT timestamp, id FROM messages WHERE id = $2 AND chat_id = $1
             ),
             before_messages AS (
-                SELECT m.* FROM messages m, target t
+                SELECT m.id FROM messages m, target t
                 WHERE m.chat_id = $1 AND m.timestamp < t.timestamp
                 ORDER BY m.timestamp DESC
                 LIMIT $3
             ),
             after_messages AS (
-                SELECT m.* FROM messages m, target t
+                SELECT m.id FROM messages m, target t
                 WHERE m.chat_id = $1 AND m.timestamp >= t.timestamp
                 ORDER BY m.timestamp ASC
                 LIMIT $3
-            )
-            SELECT * FROM (
-                SELECT * FROM before_messages
+            ),
+            combined_ids AS (
+                SELECT id FROM before_messages
                 UNION ALL
-                SELECT * FROM after_messages
-            ) combined
-            ORDER BY timestamp ASC`,
+                SELECT id FROM after_messages
+            )
+            SELECT m.*, 
+              json_agg(json_build_object(
+                'id', mf.id,
+                'original_name', mf.original_name,
+                'storage_path', mf.storage_path,
+                'thumb_path', mf.thumb_path,
+                'mime_type', mf.mime_type,
+                'size_bytes', mf.size_bytes
+              )) FILTER (WHERE mf.id IS NOT NULL) as media
+            FROM messages m
+            JOIN combined_ids c ON m.id = c.id
+            LEFT JOIN media_files mf ON mf.message_id = m.id
+            GROUP BY m.id
+            ORDER BY m.timestamp ASC`,
             [chatId, messageId, contextSize]
         );
 
