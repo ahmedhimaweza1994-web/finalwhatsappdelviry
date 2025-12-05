@@ -71,7 +71,17 @@ class Message {
         const result = await db.query(
             `WITH message_occurrences AS (
                 SELECT 
-                    m.*,
+                    m.id,
+                    m.chat_id,
+                    m.sender_name,
+                    m.sender_is_me,
+                    m.timestamp,
+                    m.body,
+                    m.message_type,
+                    m.order_index,
+                    m.metadata,
+                    m.is_pinned,
+                    m.pinned_at,
                     json_agg(json_build_object(
                         'id', mf.id,
                         'original_name', mf.original_name,
@@ -87,7 +97,8 @@ class Message {
                 FROM messages m
                 LEFT JOIN media_files mf ON mf.message_id = m.id
                 WHERE m.chat_id = $1 AND (m.body ILIKE $3 OR m.sender_name ILIKE $3)
-                GROUP BY m.id
+                GROUP BY m.id, m.chat_id, m.sender_name, m.sender_is_me, m.timestamp, 
+                         m.body, m.message_type, m.order_index, m.metadata, m.is_pinned, m.pinned_at
             ),
             expanded_results AS (
                 SELECT 
@@ -98,7 +109,7 @@ class Message {
             )
             SELECT 
                 id, chat_id, sender_name, sender_is_me, timestamp, body, 
-                message_type, order_index, metadata, created_at, is_pinned, 
+                message_type, order_index, metadata, is_pinned, 
                 pinned_at, media
             FROM expanded_results
             ORDER BY timestamp DESC
