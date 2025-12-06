@@ -1,7 +1,8 @@
 const fs = require('fs').promises;
 const path = require('path');
-const unzipper = require('unzipper');
-const { createReadStream } = require('fs');
+const { exec } = require('child_process');
+const { promisify } = require('util');
+const execAsync = promisify(exec);
 
 /**
  * ZIP Parser Service
@@ -10,18 +11,18 @@ const { createReadStream } = require('fs');
 
 class ZipParser {
     /**
-     * Extract ZIP file to destination
+     * Extract ZIP file to destination using native unzip command
+     * This is more reliable for large files than Node.js libraries
      */
     async extract(zipPath, extractPath) {
         try {
             await fs.mkdir(extractPath, { recursive: true });
 
-            return new Promise((resolve, reject) => {
-                const stream = createReadStream(zipPath)
-                    .pipe(unzipper.Extract({ path: extractPath }));
-
-                stream.on('close', () => resolve());
-                stream.on('error', reject);
+            // Use native unzip command for better large file handling
+            // -o: overwrite files without prompting
+            // -q: quiet mode
+            await execAsync(`unzip -o -q "${zipPath}" -d "${extractPath}"`, {
+                maxBuffer: 50 * 1024 * 1024 // 50MB buffer for stdout/stderr
             });
         } catch (error) {
             throw new Error(`ZIP extraction failed: ${error.message}`);
