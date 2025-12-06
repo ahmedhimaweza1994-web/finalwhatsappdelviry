@@ -61,12 +61,13 @@ const ChatWindow = ({ chat, onDelete }) => {
         try {
             setLoading(true);
             setError('');
-            // Load initial messages (last 50)
+            // Load ALL messages (backend handles pagination, but for chat view we need all)
+            // We'll display them in batches using messageLimit
             const response = await api.get(`/chats/${chat.id}/messages`, {
-                params: { limit: 50, offset: 0 }
+                params: { limit: 100000, offset: 0 }  // Get all messages
             });
             setMessages(response.data.messages || []);
-            setMessageLimit(50);
+            setMessageLimit(50);  // Start by showing last 50
         } catch (err) {
             console.error('Error fetching messages:', err);
             setError('Failed to load messages');
